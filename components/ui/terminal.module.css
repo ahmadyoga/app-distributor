@@ -1,0 +1,357 @@
+/* Shared terminal-direction atoms, translated 1:1 from the mockup's
+   dir === "terminal" style-helper branches (btn/tag/tile/nav/etc). */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btnSm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.btnMd {
+  height: 38px;
+  padding: 0 15px;
+  font-size: 13px;
+}
+.btnLg {
+  height: 46px;
+  padding: 0 20px;
+  font-size: 14px;
+}
+.btnBlock {
+  width: 100%;
+}
+
+.btnPrimary {
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+}
+.btnPrimary.btnLg {
+  background: var(--accent);
+  color: var(--primary-fg);
+}
+.btnPrimary:hover {
+  opacity: 0.88;
+}
+
+.btnGhost {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+}
+.btnGhost:hover {
+  background: var(--surface-2);
+}
+
+.btnDanger {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--danger);
+}
+.btnDanger:hover {
+  background: var(--danger-bg);
+}
+
+.btnDisabled {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: #807f87;
+  cursor: not-allowed;
+}
+.btnDisabled:active {
+  transform: none;
+}
+
+.linkBtn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+}
+.tagOk {
+  color: var(--ok);
+}
+.tagWarn {
+  color: var(--warn);
+}
+.tagMuted {
+  color: var(--muted);
+}
+
+.tile {
+  flex: none;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  background: var(--tile-bg);
+  color: var(--tile-fg);
+}
+.tileSm {
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+}
+.tileMd {
+  width: 38px;
+  height: 38px;
+  font-size: 13px;
+}
+.tileLg {
+  width: 52px;
+  height: 52px;
+  font-size: 17px;
+}
+
+.devAvatar {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--r-avatar);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tile-fg);
+  background: var(--tile-bg);
+}
+.devAvatarLg {
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.sectionLabel {
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.input,
+.textarea {
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  font-size: 14px;
+  color: var(--ink);
+  width: 100%;
+  font-family: inherit;
+}
+.input {
+  height: 42px;
+}
+.inputMono {
+  font-family: var(--font-mono);
+}
+.textarea {
+  min-height: 104px;
+  padding: 11px 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.dropZone {
+  width: 100%;
+  padding: 24px 16px;
+  border: var(--bw) dashed var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  text-align: left;
+  color: var(--ink);
+  font-family: inherit;
+}
+.dropZone:hover {
+  background: #1d1c22;
+}
+
+.tableWrap {
+  border: var(--bw) solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--card);
+}
+.tableHeadRow {
+  padding: 9px 16px;
+  border-bottom: var(--bw) solid var(--line);
+  background: var(--surface-2);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: grid;
+  align-items: center;
+  gap: 14px;
+}
+.tableRow {
+  padding: 12px 16px;
+  border-bottom: var(--bw) solid var(--line);
+  display: grid;
+  align-items: center;
+  gap: 14px;
+}
+.tableRow:last-child {
+  border-bottom: 0;
+}
+.tableRowClickable {
+  cursor: pointer;
+}
+.tableRowClickable:hover {
+  background: var(--surface-2);
+}
+
+.siblingRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--bw) solid var(--line);
+  cursor: pointer;
+  text-align: left;
+  color: var(--ink);
+  font-family: inherit;
+}
+.siblingRow:hover {
+  background: var(--surface-2);
+}
+
+.buildNo {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+.versionTag {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 11px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: var(--bw) solid var(--line);
+  color: var(--ink-soft);
+}
+
+.optionCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+  padding: 13px 15px;
+  border: var(--bw) solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  color: var(--ink);
+  font-family: inherit;
+  width: 100%;
+}
+.optionCard:hover {
+  background: var(--surface);
+}
+
+.bannerWarn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--r-sm);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.bannerWarn strong {
+  font-weight: 700;
+}
+
+.skeleton {
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: transparent;
+  color: var(--muted);
+}
+.navLink:hover {
+  background: var(--surface-2);
+}
+.navLinkActive {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}

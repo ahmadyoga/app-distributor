@@ -1,0 +1,71 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  height: 64px;
+  border-bottom: var(--topbar-rule);
+  flex: none;
+}
+
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+
+.userBlock {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.userName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.userRole {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 196px;
+  flex: none;
+  border-right: var(--bw) solid var(--line);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebarFooter {
+  margin-top: auto;
+  padding: 12px 10px;
+  border-top: var(--bw) solid var(--line);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 22px 24px 36px;
+}
+
+.pageWidth {
+  max-width: 1020px;
+  margin: 0 auto;
+}

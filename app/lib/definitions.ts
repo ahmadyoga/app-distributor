@@ -1,0 +1,60 @@
+import * as z from "zod";
+
+export const SignupFormSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters long.").trim(),
+  email: z.email("Please enter a valid email.").trim(),
+  password: z
+    .string()
+    .min(8, "Be at least 8 characters long.")
+    .regex(/[a-zA-Z]/, "Contain at least one letter.")
+    .regex(/[0-9]/, "Contain at least one number."),
+});
+
+export const LoginFormSchema = z.object({
+  email: z.email("Please enter a valid email.").trim(),
+  password: z.string().min(1, "Password is required."),
+});
+
+export const S3ConnectionSchema = z.object({
+  name: z.string().min(2, "Give this connection a name.").trim(),
+  accessKeyId: z.string().min(1, "Access key is required."),
+  secretAccessKey: z.string().min(1, "Secret key is required."),
+  region: z.string().min(1, "Region is required.").trim(),
+  bucket: z.string().min(1, "Bucket is required.").trim(),
+  endpoint: z.url("Enter a valid endpoint URL.").optional().or(z.literal("")),
+});
+
+export const BuildFormSchema = z.object({
+  applicationId: z.string().min(1),
+  version: z.string().min(1, "Version is required.").trim(),
+  number: z.string().min(1, "Build number is required.").trim(),
+  feature: z.string().min(1, "Feature or work reference is required.").trim(),
+  githubIssue: z.string().trim().optional(),
+  releaseNotes: z.string().trim().optional(),
+  storageConnectionId: z.string().min(1, "No storage connected for this application."),
+  storageObjectKey: z.string().min(1),
+  apkFileName: z.string().min(1),
+  apkSizeBytes: z.coerce.number().int().positive(),
+});
+
+export type FormState =
+  | {
+      errors?: Record<string, string[]>;
+      message?: string;
+    }
+  | undefined;
+
+export const ApplicationSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters.").trim(),
+  slug: z
+    .string()
+    .min(2, "Slug must be at least 2 characters.")
+    .regex(/^[a-z0-9-]+$/, "Slug: lowercase letters, numbers and hyphens only.")
+    .trim(),
+  platform: z.string().min(1, "Platform is required.").trim(),
+  initials: z
+    .string()
+    .min(1, "Initials required.")
+    .max(4, "Max 4 characters.")
+    .trim(),
+});

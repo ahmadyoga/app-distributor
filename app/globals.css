@@ -1,0 +1,121 @@
+/*
+  Terminal direction tokens — copied verbatim from the BuildApp mockup's
+  TERMINAL theme object (both its light and dark variants are identical,
+  so this is the app's only theme; there is no light/dark toggle).
+*/
+:root {
+  --font: var(--font-plex-mono), ui-monospace, Menlo, monospace;
+  --font-mono: var(--font-plex-mono), ui-monospace, Menlo, monospace;
+
+  --bg-outer: #111014;
+  --panel: #111014;
+  --card: #111014;
+  --surface: #18171c;
+  --surface-2: #18171c;
+
+  --line: #232228;
+  --line-strong: #3a3a40;
+
+  --ink: #ededed;
+  --ink-soft: #ededed;
+  --muted: #9c9ca3;
+
+  --accent: #c8ff3d;
+  --accent-soft: #18171c;
+
+  --primary-bg: #c8ff3d;
+  --primary-fg: #111014;
+
+  --ok: #c8ff3d;
+  --ok-bg: transparent;
+  --warn: #ffc24b;
+  --warn-bg: transparent;
+  --warn-line: #ffc24b;
+  --danger: #ff5c5c;
+  --danger-bg: #18171c;
+
+  --tile-bg: #18171c;
+  --tile-fg: #ededed;
+
+  --scrim: rgba(0, 0, 0, 0.72);
+
+  --r-lg: 0px;
+  --r-md: 0px;
+  --r-sm: 0px;
+  --r-pill: 0px;
+  --r-avatar: 0px;
+  --blur: none;
+
+  --shadow-card: none;
+  --shadow-panel: none;
+  --shadow-dialog: none;
+
+  --bw: 1px;
+  --topbar-rule: 2px solid #c8ff3d;
+  --chrome-case: uppercase;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-outer);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+@keyframes shimmer {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
