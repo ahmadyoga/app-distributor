@@ -1,110 +1,124 @@
 import "server-only";
 import { headers } from "next/headers";
-import { google } from "googleapis";
 
-const SCOPES = ["https://www.googleapis.com/auth/drive.file"];
+const SCOPES = "https://www.googleapis.com/auth/drive.file";
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const DRIVE_URL = "https://www.googleapis.com/drive/v3";
+const UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3";
+const UPLOAD_FOLDER_NAME = "distribution";
 
-function oauthClient() {
+function oauthConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
   if (!clientId || !clientSecret || !redirectUri) return null;
-  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  return { clientId, clientSecret, redirectUri };
 }
 
 export function isGoogleDriveConfigured() {
-  return oauthClient() !== null;
+  return oauthConfig() !== null;
 }
 
 export function buildAuthUrl(state: string) {
-  const client = oauthClient();
-  if (!client) throw new Error("Google Drive OAuth is not configured");
-  return client.generateAuthUrl({
+  const cfg = oauthConfig();
+  if (!cfg) throw new Error("Google Drive OAuth is not configured");
+  const params = new URLSearchParams({
+    client_id: cfg.clientId,
+    redirect_uri: cfg.redirectUri,
+    response_type: "code",
+    scope: SCOPES,
     access_type: "offline",
     prompt: "consent",
-    scope: SCOPES,
     state,
   });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
 export async function exchangeCodeForTokens(code: string) {
-  const client = oauthClient();
-  if (!client) throw new Error("Google Drive OAuth is not configured");
-  const { tokens } = await client.getToken(code);
-  return tokens;
-}
-
-function authorizedClient(refreshToken: string) {
-  const client = oauthClient();
-  if (!client) throw new Error("Google Drive OAuth is not configured");
-  client.setCredentials({ refresh_token: refreshToken });
-  return client;
-}
-
-const UPLOAD_FOLDER_NAME = "distribution";
-
-/** Finds (or creates, on first use) the app's "distribution" folder in the user's Drive. */
-async function ensureDistributionFolder(refreshToken: string): Promise<string> {
-  const auth = authorizedClient(refreshToken);
-  const drive = google.drive({ version: "v3", auth });
-
-  const existing = await drive.files.list({
-    q: `name='${UPLOAD_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: "files(id)",
-    spaces: "drive",
-    pageSize: 1,
+  const cfg = oauthConfig();
+  if (!cfg) throw new Error("Google Drive OAuth is not configured");
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      redirect_uri: cfg.redirectUri,
+      grant_type: "authorization_code",
+    }),
   });
-  const found = existing.data.files?.[0]?.id;
-  if (found) return found;
-
-  const created = await drive.files.create({
-    requestBody: { name: UPLOAD_FOLDER_NAME, mimeType: "application/vnd.google-apps.folder" },
-    fields: "id",
-  });
-  if (!created.data.id) throw new Error("Failed to create the Drive distribution folder");
-  return created.data.id;
+  if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
+  return res.json() as Promise<{ access_token: string; refresh_token: string }>;
 }
 
-/** Opens a resumable upload session; the client PUTs the file bytes directly to the returned URL. */
+async function getAccessToken(refreshToken: string): Promise<string> {
+  const cfg = oauthConfig();
+  if (!cfg) throw new Error("Google Drive OAuth is not configured");
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      refresh_token: refreshToken,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!res.ok) throw new Error(`Failed to refresh access token: ${res.status}`);
+  const data = await res.json() as { access_token: string };
+  return data.access_token;
+}
+
+async function ensureDistributionFolder(accessToken: string): Promise<string> {
+  const q = encodeURIComponent(
+    `name='${UPLOAD_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
+  );
+  const list = await fetch(`${DRIVE_URL}/files?q=${q}&fields=files(id)&pageSize=1&spaces=drive`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!list.ok) throw new Error(`Drive list failed: ${list.status}`);
+  const data = await list.json() as { files: { id: string }[] };
+  if (data.files[0]?.id) return data.files[0].id;
+
+  const create = await fetch(`${DRIVE_URL}/files?fields=id`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: UPLOAD_FOLDER_NAME, mimeType: "application/vnd.google-apps.folder" }),
+  });
+  if (!create.ok) throw new Error(`Drive folder create failed: ${create.status}`);
+  const folder = await create.json() as { id: string };
+  if (!folder.id) throw new Error("Failed to create the Drive distribution folder");
+  return folder.id;
+}
+
 export async function createResumableUploadSession(
   refreshToken: string,
   filename: string,
   mimeType: string
 ) {
-  const auth = authorizedClient(refreshToken);
-  const { token } = await auth.getAccessToken();
-  if (!token) throw new Error("Failed to obtain a Google Drive access token");
+  const accessToken = await getAccessToken(refreshToken);
+  const folderId = await ensureDistributionFolder(accessToken);
 
-  const folderId = await ensureDistributionFolder(refreshToken);
-
-  // The client PUTs the file bytes directly to the session URL, which is a
-  // cross-origin request to googleapis.com. Google only allows that CORS PUT
-  // for the origin that was told to it when the session was opened — so this
-  // origin (read from the real incoming request) must match what the browser
-  // sends on the PUT, or the browser silently fails the upload as a generic
-  // "network error" even though the (empty) file has already been created.
-  // https://developers.google.com/workspace/drive/api/guides/manage-uploads#cors-support-for-resumable-uploads
   const hdrs = await headers();
   const origin =
     hdrs.get("origin") ??
     `${hdrs.get("x-forwarded-proto") ?? "http"}://${hdrs.get("host")}`;
 
-  const res = await fetch(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json; charset=UTF-8",
-        "X-Upload-Content-Type": mimeType,
-        Origin: origin,
-      },
-      body: JSON.stringify({ name: filename, parents: [folderId] }),
-    }
-  );
-  if (!res.ok) {
-    throw new Error(`Failed to open Drive upload session: ${res.status}`);
-  }
+  const res = await fetch(`${UPLOAD_URL}/files?uploadType=resumable`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
+      "X-Upload-Content-Type": mimeType,
+      Origin: origin,
+    },
+    body: JSON.stringify({ name: filename, parents: [folderId] }),
+  });
+  if (!res.ok) throw new Error(`Failed to open Drive upload session: ${res.status}`);
   const sessionUrl = res.headers.get("location");
   if (!sessionUrl) throw new Error("Drive did not return an upload session URL");
   return sessionUrl;
@@ -117,25 +131,30 @@ export type DriveFileSummary = {
   createdTime: string | null;
 };
 
-/** Lists every file sitting in the app's "distribution" folder — since the
- *  app only ever uploads there (drive.file scope), everything here is ours. */
 export async function listDistributionFolderFiles(
   refreshToken: string
 ): Promise<DriveFileSummary[]> {
-  const auth = authorizedClient(refreshToken);
-  const drive = google.drive({ version: "v3", auth });
-  const folderId = await ensureDistributionFolder(refreshToken);
+  const accessToken = await getAccessToken(refreshToken);
+  const folderId = await ensureDistributionFolder(accessToken);
 
   const results: DriveFileSummary[] = [];
   let pageToken: string | undefined;
   do {
-    const res = await drive.files.list({
+    const params = new URLSearchParams({
       q: `'${folderId}' in parents and trashed=false`,
-      fields: "nextPageToken, files(id,name,size,createdTime)",
-      pageSize: 1000,
-      pageToken,
+      fields: "nextPageToken,files(id,name,size,createdTime)",
+      pageSize: "1000",
+      ...(pageToken ? { pageToken } : {}),
     });
-    for (const f of res.data.files ?? []) {
+    const res = await fetch(`${DRIVE_URL}/files?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) throw new Error(`Drive list failed: ${res.status}`);
+    const data = await res.json() as {
+      nextPageToken?: string;
+      files: { id: string; name?: string; size?: string; createdTime?: string }[];
+    };
+    for (const f of data.files) {
       if (f.id) {
         results.push({
           id: f.id,
@@ -145,38 +164,39 @@ export async function listDistributionFolderFiles(
         });
       }
     }
-    pageToken = res.data.nextPageToken ?? undefined;
+    pageToken = data.nextPageToken;
   } while (pageToken);
   return results;
 }
 
-/** Moves a file to Drive's trash (recoverable for ~30 days) rather than
- *  permanently deleting it — safer default for an automated cleanup action. */
 export async function trashDriveFile(refreshToken: string, fileId: string) {
-  const auth = authorizedClient(refreshToken);
-  const drive = google.drive({ version: "v3", auth });
-  await drive.files.update({ fileId, requestBody: { trashed: true } });
+  const accessToken = await getAccessToken(refreshToken);
+  const res = await fetch(`${DRIVE_URL}/files/${fileId}?fields=id`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ trashed: true }),
+  });
+  if (!res.ok) throw new Error(`Drive trash failed: ${res.status}`);
 }
 
 export async function getAccountEmail(refreshToken: string) {
-  const auth = authorizedClient(refreshToken);
-  const drive = google.drive({ version: "v3", auth });
-  const res = await drive.about.get({ fields: "user" });
-  return res.data.user?.emailAddress ?? "Google Drive";
+  const accessToken = await getAccessToken(refreshToken);
+  const res = await fetch(`${DRIVE_URL}/about?fields=user`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return "Google Drive";
+  const data = await res.json() as { user?: { emailAddress?: string } };
+  return data.user?.emailAddress ?? "Google Drive";
 }
 
-/** Streams the file's bytes from Drive for proxying back to the browser on download. */
 export async function fetchDriveFileStream(refreshToken: string, fileId: string) {
-  const auth = authorizedClient(refreshToken);
-  const { token } = await auth.getAccessToken();
-  if (!token) throw new Error("Failed to obtain a Google Drive access token");
-
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!res.ok || !res.body) {
-    throw new Error(`Failed to fetch Drive file: ${res.status}`);
-  }
+  const accessToken = await getAccessToken(refreshToken);
+  const res = await fetch(`${DRIVE_URL}/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok || !res.body) throw new Error(`Failed to fetch Drive file: ${res.status}`);
   return res;
 }
