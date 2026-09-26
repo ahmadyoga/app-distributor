@@ -24,12 +24,19 @@ export const S3ConnectionSchema = z.object({
   endpoint: z.url("Enter a valid endpoint URL.").optional().or(z.literal("")),
 });
 
+export const TicketRefSchema = z.object({
+  repo: z.string().min(1),
+  number: z.number().int().positive(),
+  title: z.string().min(1),
+  htmlUrl: z.string().min(1),
+});
+
 export const BuildFormSchema = z.object({
   applicationId: z.string().min(1),
   version: z.string().min(1, "Version is required.").trim(),
   number: z.string().min(1, "Build number is required.").trim(),
   feature: z.string().min(1, "Feature or work reference is required.").trim(),
-  githubIssue: z.string().trim().optional(),
+  tickets: z.array(TicketRefSchema).optional(),
   releaseNotes: z.string().trim().optional(),
   storageConnectionId: z.string().min(1, "No storage connected for this application."),
   storageObjectKey: z.string().min(1),

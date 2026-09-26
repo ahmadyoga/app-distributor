@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { requirePublisher } from "@/lib/dal";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { presignS3Put, listS3Objects, deleteS3Object } from "@/lib/storage/s3";
+import { postBuildComment } from "@/lib/github";
 import {
   createResumableUploadSession,
   listDistributionFolderFiles,
@@ -14,6 +15,7 @@ import {
 import {
   S3ConnectionSchema,
   BuildFormSchema,
+  TicketRefSchema,
   type FormState,
 } from "@/app/lib/definitions";
 import type { S3Credentials } from "@/lib/storage/s3";
@@ -171,12 +173,23 @@ export type FinalizeBuildResult =
 export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildResult> {
   const user = await requirePublisher();
 
+  const rawTickets = formData.get("tickets");
+  let parsedTickets: Array<{ repo: string; number: number; title: string; htmlUrl: string }> = [];
+  if (rawTickets) {
+    try {
+      const arr = JSON.parse(String(rawTickets));
+      parsedTickets = TicketRefSchema.array().parse(arr);
+    } catch {
+      return { ok: false, message: "Invalid ticket data." };
+    }
+  }
+
   const validated = BuildFormSchema.safeParse({
     applicationId: formData.get("applicationId"),
     version: formData.get("version"),
     number: formData.get("number"),
     feature: formData.get("feature"),
-    githubIssue: formData.get("githubIssue") || undefined,
+    tickets: parsedTickets,
     releaseNotes: formData.get("releaseNotes") || undefined,
     storageConnectionId: formData.get("storageConnectionId"),
     storageObjectKey: formData.get("storageObjectKey"),
@@ -209,7 +222,6 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
       version: data.version,
       number: data.number,
       feature: data.feature,
-      githubIssue: data.githubIssue || null,
       releaseNotes: data.releaseNotes || null,
       developerId: user.id,
       status: "PUBLISHED",
@@ -217,6 +229,16 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
       storageObjectKey: data.storageObjectKey,
       apkFileName: data.apkFileName,
       apkSizeBytes: BigInt(data.apkSizeBytes),
+      tickets: parsedTickets.length > 0
+        ? {
+            create: parsedTickets.map((t) => ({
+              repo: t.repo,
+              number: t.number,
+              title: t.title,
+              htmlUrl: t.htmlUrl,
+            })),
+          }
+        : undefined,
     },
   });
 
@@ -224,6 +246,43 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
     where: { id: data.storageConnectionId },
     data: { usedBytesApprox: { increment: BigInt(data.apkSizeBytes) } },
   });
+
+  // Post comment to all linked GitHub issues in the background — update commentStatus per ticket
+  if (parsedTickets.length > 0) {
+    const commentArgs = {
+      appName: app.name,
+      appSlug: app.slug,
+      buildNumber: build.number,
+      version: data.version,
+      feature: data.feature,
+      developerName: user.name,
+      apkSizeBytes: data.apkSizeBytes,
+    };
+    // Intentionally not awaited — runs after response is returned
+    Promise.allSettled(
+      parsedTickets.map(async (t) => {
+        const ticket = await prisma.buildTicket.findUnique({
+          where: { buildId_repo_number: { buildId: build.id, repo: t.repo, number: t.number } },
+        });
+        if (!ticket) return;
+        try {
+          await postBuildComment({ repo: t.repo, issueNumber: t.number, ...commentArgs });
+          await prisma.buildTicket.update({
+            where: { id: ticket.id },
+            data: { commentStatus: "POSTED" },
+          });
+        } catch (err) {
+          await prisma.buildTicket.update({
+            where: { id: ticket.id },
+            data: {
+              commentStatus: "FAILED",
+              commentError: err instanceof Error ? err.message : "Unknown error",
+            },
+          });
+        }
+      })
+    ).catch(() => {});
+  }
 
   revalidatePath(`/apps/${app.slug}`);
   revalidatePath("/");

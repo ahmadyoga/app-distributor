@@ -131,7 +131,7 @@ export default async function ApplicationPage({
                       {b.feature}
                     </span>
                     <span style={{ display: "block", fontSize: 11, color: "var(--muted)" }}>
-                      {b.githubIssue ? `GitHub ${b.githubIssue}` : "No issue linked"}
+                      {b.tickets?.length ? `${b.tickets.length} ticket${b.tickets.length > 1 ? "s" : ""} linked` : "No tickets linked"}
                     </span>
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>

@@ -11,6 +11,7 @@ import {
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Button, TextLinkButton } from "@/components/ui/Button";
 import terminal from "@/components/ui/terminal.module.css";
+import { TicketPicker, type TicketRef } from "@/components/TicketPicker";
 
 type Phase = "idle" | "uploading" | "finalizing" | "done" | "error";
 
@@ -64,7 +65,7 @@ export function CreateBuildForm({
   const [version, setVersion] = useState(suggestedVersion);
   const [number, setNumber] = useState(suggestedNumber);
   const [feature, setFeature] = useState("");
-  const [githubIssue, setGithubIssue] = useState("");
+  const [tickets, setTickets] = useState<TicketRef[]>([]);
   const [releaseNotes, setReleaseNotes] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
@@ -164,7 +165,7 @@ export function CreateBuildForm({
       fd.set("version", version);
       fd.set("number", number);
       fd.set("feature", feature);
-      if (githubIssue) fd.set("githubIssue", githubIssue);
+      if (tickets.length > 0) fd.set("tickets", JSON.stringify(tickets));
       if (releaseNotes) fd.set("releaseNotes", releaseNotes);
       fd.set("storageConnectionId", storageConnectionId);
       fd.set("storageObjectKey", storageObjectKey);
@@ -259,21 +260,13 @@ export function CreateBuildForm({
         <Field label="Feature or work reference">
           <Input value={feature} onChange={(e) => setFeature(e.target.value)} required />
         </Field>
-        <Field
-          label={
-            <>
-              GitHub issue{" "}
-              <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span>
-            </>
-          }
-        >
-          <Input
-            mono
-            value={githubIssue}
-            onChange={(e) => setGithubIssue(e.target.value)}
-            placeholder="#182"
-          />
-        </Field>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span className={terminal.fieldLabel}>
+            Tickets{" "}
+            <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span>
+          </span>
+          <TicketPicker tickets={tickets} onChange={setTickets} />
+        </div>
       </div>
 
       <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 6 }}>

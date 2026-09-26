@@ -1,0 +1,190 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: 12px;
+}
+
+.chipRepo {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.chipNum {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.chipTitle {
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.chipRemove {
+  flex-shrink: 0;
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  font-family: inherit;
+}
+.chipRemove:hover {
+  color: var(--danger);
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.repoSelect {
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  max-width: 220px;
+  min-width: 120px;
+  cursor: pointer;
+}
+.repoSelect:disabled {
+  opacity: 0.5;
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.searchInput {
+  padding-right: 32px !important;
+}
+
+.spinner {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: translateY(-50%) rotate(360deg); }
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  text-align: left;
+  color: var(--ink);
+  font-family: inherit;
+}
+.dropdownItem:last-child {
+  border-bottom: 0;
+}
+.dropdownItem:hover {
+  background: var(--surface-2);
+}
+
+.issueNum {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+  min-width: 38px;
+}
+
+.issueTitle {
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issueState {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+}
+
+.stateOpen {
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+  color: var(--ok);
+}
+
+.stateClosed {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.dropdownEmpty {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}

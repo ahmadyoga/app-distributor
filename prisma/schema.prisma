@@ -68,7 +68,6 @@ model Build {
   version      String
   number       String
   feature      String
-  githubIssue  String?
   releaseNotes String?
 
   developer   User   @relation(fields: [developerId], references: [id])
@@ -89,5 +88,31 @@ model Build {
 
   createdAt DateTime @default(now())
 
+  tickets BuildTicket[]
+
   @@unique([applicationId, number])
+}
+
+enum CommentStatus {
+  PENDING
+  POSTED
+  FAILED
+}
+
+model BuildTicket {
+  id        String @id @default(cuid())
+  build     Build  @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  buildId   String
+
+  repo      String
+  number    Int
+  title     String
+  htmlUrl   String
+
+  commentStatus CommentStatus @default(PENDING)
+  commentError  String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([buildId, repo, number])
 }

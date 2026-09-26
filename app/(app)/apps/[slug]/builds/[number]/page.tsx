@@ -10,6 +10,7 @@ import terminal from "@/components/ui/terminal.module.css";
 import styles from "./build.module.css";
 import { DeleteBuildButton } from "@/components/DeleteBuildButton";
 import { ShareBuildButton } from "@/components/ShareBuildButton";
+import { TicketCommentStatus } from "@/components/TicketCommentStatus";
 
 export default async function BuildPage({
   params,
@@ -61,11 +62,41 @@ export default async function BuildPage({
               <StatusTag tone={toneForBuildStatus(build.status)}>{build.status}</StatusTag>
             </div>
             <h2 className={styles.feature}>{build.feature}</h2>
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>
-              {build.githubIssue
-                ? `Linked to GitHub issue ${build.githubIssue}`
-                : "No GitHub issue linked"}
-            </p>
+            {build.tickets.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {build.tickets.map((t) => (
+                  <a
+                    key={t.id}
+                    href={t.htmlUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "7px 10px",
+                      border: "1px solid var(--line-strong)",
+                      borderRadius: "var(--r-sm)",
+                      background: "var(--surface-2)",
+                      textDecoration: "none",
+                      fontSize: 12,
+                    }}
+                  >
+                    <span style={{ color: "var(--muted)", fontFamily: "var(--font-mono)", flexShrink: 0 }}>
+                      {t.repo}
+                    </span>
+                    <span style={{ color: "var(--accent)", fontFamily: "var(--font-mono)", fontWeight: 700, flexShrink: 0 }}>
+                      #{t.number}
+                    </span>
+                    <span style={{ color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      {t.title}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: "var(--muted)" }}>No tickets linked</p>
+            )}
           </div>
 
           {notes.length > 0 && (
@@ -180,6 +211,10 @@ export default async function BuildPage({
       <div style={{ marginTop: 24 }}>
         <ShareBuildButton buildId={build.id} existingToken={build.shareToken ?? null} link />
       </div>
+
+      {build.tickets.length > 0 && (
+        <TicketCommentStatus buildId={build.id} buildCreatedAt={build.createdAt} />
+      )}
     </div>
   );
 }

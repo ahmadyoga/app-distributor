@@ -52,6 +52,7 @@ export default async function SharePage({
     include: {
       application: true,
       developer: true,
+      tickets: { orderBy: { createdAt: "asc" } },
     },
   });
 
@@ -95,9 +96,9 @@ export default async function SharePage({
             </div>
             <h2 className={styles.feature}>{build.feature}</h2>
             <p style={{ fontSize: 13, color: "var(--muted)" }}>
-              {build.githubIssue
-                ? `Linked to GitHub issue ${build.githubIssue}`
-                : "No GitHub issue linked"}
+              {build.tickets?.length
+                ? `${build.tickets.length} ticket${build.tickets.length > 1 ? "s" : ""} linked`
+                : "No tickets linked"}
             </p>
           </div>
 

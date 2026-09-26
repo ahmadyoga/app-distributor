@@ -41,7 +41,7 @@ export async function getApplicationBySlug(slug: string) {
   const builds = await prisma.build.findMany({
     where: { applicationId: app.id },
     orderBy: { createdAt: "desc" },
-    include: { developer: true },
+    include: { developer: true, tickets: true },
   });
 
   const groupsByVersion = new Map<string, typeof builds>();
@@ -70,7 +70,7 @@ export async function getBuild(slug: string, number: string) {
 
   const build = await prisma.build.findUnique({
     where: { applicationId_number: { applicationId: app.id, number } },
-    include: { developer: true, storageConnection: true },
+    include: { developer: true, storageConnection: true, tickets: { orderBy: { createdAt: "asc" } } },
   });
   if (!build) return null;
 
@@ -91,7 +91,7 @@ export async function getRecentBuilds(limit = 7) {
   return prisma.build.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,
-    include: { developer: true, application: true },
+    include: { developer: true, application: true, tickets: true },
   });
 }
 
@@ -108,10 +108,9 @@ export async function getDashboardStats() {
       }),
       prisma.application.count(),
       prisma.build.aggregate({ _sum: { apkSizeBytes: true } }),
-      prisma.build.findMany({
-        where: { githubIssue: { not: null } },
-        distinct: ["githubIssue"],
-        select: { githubIssue: true },
+      prisma.buildTicket.findMany({
+        distinct: ["buildId"],
+        select: { buildId: true },
       }),
     ]);
 
