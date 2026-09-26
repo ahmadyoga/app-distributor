@@ -13,15 +13,15 @@ export function ShareBuildButton({
   existingToken: string | null;
   link?: boolean;
 }) {
-  const [token, setToken] = useState<string | null>(existingToken);
+  const [hasToken, setHasToken] = useState(existingToken !== null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
   async function handleShare() {
     setLoading(true);
     try {
-      const url = token ?? (await generateShareToken(buildId));
-      setToken(url);
+      const url = await generateShareToken(buildId);
+      setHasToken(true);
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -34,7 +34,7 @@ export function ShareBuildButton({
     ? "Copied"
     : loading
     ? "Generating…"
-    : token
+    : hasToken
     ? "Copy share link"
     : "Share";
 
