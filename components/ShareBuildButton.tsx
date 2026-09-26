@@ -20,10 +20,8 @@ export function ShareBuildButton({
   async function handleShare() {
     setLoading(true);
     try {
-      const t = token ?? (await generateShareToken(buildId));
-      setToken(t);
-      const base = process.env.NEXT_PUBLIC_BASE_URL ?? window.location.origin;
-      const url = `${base}/share/${t}`;
+      const url = token ?? (await generateShareToken(buildId));
+      setToken(url);
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

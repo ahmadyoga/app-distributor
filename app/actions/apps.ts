@@ -106,7 +106,10 @@ export async function generateShareToken(buildId: string): Promise<string> {
     select: { shareToken: true },
   });
   if (!existing) throw new Error("Build not found");
-  if (existing.shareToken) return existing.shareToken;
+  if (existing.shareToken) {
+    const base = process.env.BASE_URL ?? "http://localhost:3000";
+    return `${base}/share/${existing.shareToken}`;
+  }
 
   const token = randomBytes(18).toString("base64url");
   await prisma.build.update({
@@ -114,5 +117,6 @@ export async function generateShareToken(buildId: string): Promise<string> {
     data: { shareToken: token },
   });
   revalidatePath(`/share/${token}`);
-  return token;
+  const base = process.env.BASE_URL ?? "http://localhost:3000";
+  return `${base}/share/${token}`;
 }
