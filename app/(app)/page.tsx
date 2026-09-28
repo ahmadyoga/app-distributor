@@ -53,9 +53,9 @@ export default async function DashboardPage() {
           sub="across connected storage"
         />
         <StatTile
-          k="Open issues linked"
-          v={String(stats.openIssuesLinked)}
-          sub="distinct GitHub references"
+          k="Issues linked"
+          v={String(stats.issuesLinked)}
+          sub="distinct GitHub issues"
         />
       </div>
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getApplicationBySlug } from "@/lib/queries";
+import { getApplicationBySlug, BUILD_PAGE_SIZE } from "@/lib/queries";
 import { getCurrentUser } from "@/lib/dal";
 import { absoluteUrl } from "@/lib/url";
 import { Tile } from "@/components/ui/Tile";
@@ -16,15 +16,20 @@ const COLUMNS = "64px minmax(0,1.7fr) 116px 108px 96px 90px";
 
 export default async function ApplicationPage({
   params,
+  searchParams,
 }: PageProps<"/apps/[slug]">) {
-  const { slug } = await params;
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
+  const requested = Number(query.limit);
+  const limit =
+    Number.isInteger(requested) && requested > 0 ? Math.min(requested, 1000) : BUILD_PAGE_SIZE;
   const [data, user] = await Promise.all([
-    getApplicationBySlug(slug),
+    getApplicationBySlug(slug, limit),
     getCurrentUser(),
   ]);
   if (!data) notFound();
 
-  const { app, latest, versionGroups } = data;
+  const { app, latest, versionGroups, totalBuilds } = data;
+  const shown = versionGroups.reduce((n, g) => n + g.builds.length, 0);
   const readOnly = user.role === "VIEWER";
   const appUrl = absoluteUrl(`/apps/${app.slug}`);
 
@@ -90,7 +95,9 @@ export default async function ApplicationPage({
 
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>Build history</h2>
-        <span style={{ fontSize: 12, color: "var(--muted)" }}>Grouped by version</span>
+        <span style={{ fontSize: 12, color: "var(--muted)" }}>
+          Grouped by version{totalBuilds > shown ? ` · newest ${shown} of ${totalBuilds}` : ""}
+        </span>
       </div>
 
       {versionGroups.length === 0 && (
@@ -170,6 +177,14 @@ export default async function ApplicationPage({
           </TableWrap>
         </div>
       ))}
+
+      {totalBuilds > shown && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
+          <LinkButton href={`/apps/${app.slug}?limit=${shown + BUILD_PAGE_SIZE}`} size="sm" scroll={false}>
+            Show {Math.min(BUILD_PAGE_SIZE, totalBuilds - shown)} older builds
+          </LinkButton>
+        </div>
+      )}
     </div>
   );
 }

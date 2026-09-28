@@ -2,13 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import ApkParser from "app-info-parser/src/apk";
 import {
   presignS3Upload,
   createGDriveUploadSession,
   finalizeBuild,
 } from "@/app/actions/storage";
 import { detectInspector } from "@/lib/apkInspector";
+import { uploadToDriveSession } from "@/lib/driveUpload";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Button, TextLinkButton } from "@/components/ui/Button";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -18,6 +18,7 @@ import { TicketPicker, type TicketRef } from "@/components/TicketPicker";
 
 type Phase = "idle" | "uploading" | "finalizing" | "done" | "error";
 type Environment = "PRODUCTION" | "STAGING";
+type ApkParserInstance = InstanceType<typeof import("app-info-parser/src/apk").default>;
 type ApkInfo = { versionName?: string; versionCode?: string; packageName?: string };
 
 const MAX_APK_BYTES = 500 * 1024 * 1024;
@@ -91,6 +92,8 @@ export function CreateBuildForm({
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Bumped per picked file so a slow read of an earlier file can't overwrite a newer one.
+  const scanId = useRef(0);
 
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -106,6 +109,7 @@ export function CreateBuildForm({
   const [releaseNotes, setReleaseNotes] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
+  const [retry, setRetry] = useState<{ attempt: number; max: number; reason: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [scanning, setScanning] = useState(false);
@@ -113,6 +117,8 @@ export function CreateBuildForm({
   const [attempted, setAttempted] = useState(false);
 
   function clearFile() {
+    scanId.current++; // cancels any read still in flight
+    setScanning(false);
     setFile(null);
     setApkInfo(null);
     setInspectorDetected(null);
@@ -136,10 +142,24 @@ export function CreateBuildForm({
 
     setFile(f);
     setScanning(true);
-    const parser = new ApkParser(f);
+    const id = ++scanId.current;
+    // Loaded on demand: the parser is the heaviest part of this page and is
+    // only needed once an APK has been picked.
+    import("app-info-parser/src/apk")
+      .then(({ default: ApkParser }) => readApk(new ApkParser(f), id))
+      .catch(() => {
+        if (id !== scanId.current) return;
+        setApkInfo({});
+        setScanning(false);
+      });
+  }
+
+  function readApk(parser: ApkParserInstance, id: number) {
+    const current = () => id === scanId.current;
     parser
       .parse()
       .then((info) => {
+        if (!current()) return;
         const next: ApkInfo = {
           versionName: info.versionName || undefined,
           versionCode:
@@ -152,14 +172,14 @@ export function CreateBuildForm({
         if (next.versionName) setVersion(next.versionName);
         if (next.versionCode) setNumber(next.versionCode);
       })
-      .catch(() => setApkInfo({}))
-      .finally(() => setScanning(false));
+      .catch(() => current() && setApkInfo({}))
+      .finally(() => current() && setScanning(false));
 
     parser
       .getEntries([/^androidmanifest\.xml$/i])
       .then((buffers) => {
         const manifestBuffer = Object.values(buffers)[0];
-        if (!manifestBuffer) return;
+        if (!manifestBuffer || !current()) return;
         const detected = detectInspector(manifestBuffer);
         setInspectorDetected(detected);
         setHasInspector(detected);
@@ -237,12 +257,16 @@ export function CreateBuildForm({
         storageObjectKey = presigned.objectKey;
       } else {
         const session = await createGDriveUploadSession(applicationId, file.name, contentType);
-        const xhr = await xhrPut(session.uploadUrl, file, contentType, setProgress);
-        const body = JSON.parse(xhr.responseText) as { id: string };
+        // Chunked + resumable: a dropped connection resumes instead of restarting.
+        storageObjectKey = await uploadToDriveSession(session.uploadUrl, file, contentType, {
+          onProgress: setProgress,
+          onRetry: setRetry,
+        });
+        setRetry(null);
         storageConnectionId = session.storageConnectionId;
-        storageObjectKey = body.id;
       }
 
+      setRetry(null);
       setPhase("finalizing");
 
       const fd = new FormData();
@@ -271,6 +295,7 @@ export function CreateBuildForm({
       setPhase("done");
       router.push(`/apps/${result.appSlug}/builds/${result.id}`);
     } catch (err) {
+      setRetry(null);
       setPhase("idle");
       setError(err instanceof Error ? err.message : "Something went wrong.");
     }
@@ -649,6 +674,12 @@ export function CreateBuildForm({
             <span className={styles.status}>
               {checks.filter((c) => !c.done).length} item
               {checks.filter((c) => !c.done).length === 1 ? "" : "s"} left before publishing.
+            </span>
+          )}
+          {retry && (
+            <span className={styles.msgWarn} role="status">
+              Connection dropped ({retry.reason}) — resuming, attempt {retry.attempt} of {retry.max}.
+              Keep this page open.
             </span>
           )}
           {error && <p className={styles.formError}>{error}</p>}

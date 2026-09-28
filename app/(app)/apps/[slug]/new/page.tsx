@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getApplicationBySlug } from "@/lib/queries";
+import { getNewBuildContext } from "@/lib/queries";
 import { getCurrentUser } from "@/lib/dal";
 import { CreateBuildForm } from "@/components/CreateBuildForm";
 import styles from "../application.module.css";
@@ -10,14 +10,13 @@ export default async function NewBuildPage({
 }: PageProps<"/apps/[slug]/new">) {
   const { slug } = await params;
   const [data, user] = await Promise.all([
-    getApplicationBySlug(slug),
+    getNewBuildContext(slug),
     getCurrentUser(),
   ]);
   if (!data) notFound();
   if (user.role === "VIEWER") redirect(`/apps/${slug}`);
 
-  const { app, latest, versionGroups } = data;
-  const existingNumbers = versionGroups.flatMap((g) => g.builds.map((b) => b.number));
+  const { app, latest, existingNumbers } = data;
   const provider = app.defaultStorage?.provider ?? null;
 
   const suggestedNumber = latest?.number && /^\d+$/.test(latest.number)

@@ -25,7 +25,8 @@ export const getCurrentUser = cache(async () => {
     where: { id: session.userId },
     select: { id: true, name: true, email: true, role: true },
   });
-  if (!user) redirect("/login");
+  // Valid cookie, but the user is gone: clear it rather than loop via /login.
+  if (!user) redirect("/api/auth/expired");
   return user;
 });
 

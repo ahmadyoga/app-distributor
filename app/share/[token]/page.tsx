@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
@@ -9,12 +10,13 @@ import { DownloadButton } from "@/components/DownloadButton";
 import terminal from "@/components/ui/terminal.module.css";
 import styles from "./share.module.css";
 
-async function getSharedBuild(token: string) {
-  return prisma.build.findUnique({
+// cache(): generateMetadata and the page share one lookup per request.
+const getSharedBuild = cache(async (token: string) =>
+  prisma.build.findUnique({
     where: { shareToken: token },
     include: { application: true, developer: { select: { name: true } } },
-  });
-}
+  })
+);
 
 export async function generateMetadata({
   params,

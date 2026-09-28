@@ -31,21 +31,28 @@ export async function listApplications() {
   }));
 }
 
-export async function getApplicationBySlug(slug: string) {
+export const BUILD_PAGE_SIZE = 30;
+
+/** App page: the newest `limit` builds, grouped by version, plus the total. */
+export async function getApplicationBySlug(slug: string, limit = BUILD_PAGE_SIZE) {
   const app = await prisma.application.findUnique({
     where: { slug },
     include: { defaultStorage: { select: { name: true, provider: true } } },
   });
   if (!app) return null;
 
-  const builds = await prisma.build.findMany({
-    where: { applicationId: app.id },
-    orderBy: { createdAt: "desc" },
-    include: {
-      developer: { select: { name: true } },
-      _count: { select: { tickets: true } },
-    },
-  });
+  const [builds, totalBuilds] = await Promise.all([
+    prisma.build.findMany({
+      where: { applicationId: app.id },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: {
+        developer: { select: { name: true } },
+        _count: { select: { tickets: true } },
+      },
+    }),
+    prisma.build.count({ where: { applicationId: app.id } }),
+  ]);
 
   const groupsByVersion = new Map<string, typeof builds>();
   for (const b of builds) {
@@ -58,6 +65,7 @@ export async function getApplicationBySlug(slug: string) {
     app,
     latest: builds[0] ?? null,
     lastNumber: builds[0]?.number ?? null,
+    totalBuilds,
     versionGroups: Array.from(groupsByVersion.entries()).map(
       ([version, groupBuilds]) => ({
         version,
@@ -65,6 +73,25 @@ export async function getApplicationBySlug(slug: string) {
       })
     ),
   };
+}
+
+/** Create-build page: only what the form needs — never the full build history. */
+export async function getNewBuildContext(slug: string) {
+  const app = await prisma.application.findUnique({
+    where: { slug },
+    include: { defaultStorage: { select: { name: true, provider: true } } },
+  });
+  if (!app) return null;
+
+  const [latest, numbers] = await Promise.all([
+    prisma.build.findFirst({
+      where: { applicationId: app.id },
+      orderBy: { createdAt: "desc" },
+      select: { version: true, number: true },
+    }),
+    prisma.build.findMany({ where: { applicationId: app.id }, select: { number: true } }),
+  ]);
+  return { app, latest, existingNumbers: numbers.map((b) => b.number) };
 }
 
 export async function getBuild(slug: string, id: string) {
@@ -116,10 +143,9 @@ export async function getDashboardStats() {
       }),
       prisma.application.count(),
       prisma.build.aggregate({ _sum: { apkSizeBytes: true } }),
-      prisma.buildTicket.findMany({
-        distinct: ["buildId"],
-        select: { buildId: true },
-      }),
+      prisma.$queryRaw<[{ n: number }]>`
+        SELECT COUNT(DISTINCT ("repo", "number"))::int AS n FROM "BuildTicket"
+      `,
     ]);
 
   return {
@@ -127,7 +153,7 @@ export async function getDashboardStats() {
     publishedToday,
     applicationCount,
     storageUsedBytes: sizeAgg._sum.apkSizeBytes ?? BigInt(0),
-    openIssuesLinked: openIssues.length,
+    issuesLinked: openIssues[0].n,
   };
 }
 

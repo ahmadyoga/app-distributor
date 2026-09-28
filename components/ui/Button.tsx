@@ -68,9 +68,12 @@ export function LinkButton({
   size = "md",
   block,
   className,
+  scroll,
   children,
 }: {
   href: string;
+  /** Pass false to keep the scroll position (e.g. "show more" on the same page). */
+  scroll?: boolean;
   variant?: Variant;
   size?: Size;
   block?: boolean;
@@ -80,6 +83,7 @@ export function LinkButton({
   return (
     <Link
       href={href}
+      scroll={scroll}
       className={buttonClassName(variant, size, block, className)}
     >
       {children}

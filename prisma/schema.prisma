@@ -97,9 +97,13 @@ model Build {
 
   tickets BuildTicket[]
 
+  // A build number identifies one APK within an app (PRD 7.4).
+  @@unique([applicationId, number])
   @@index([applicationId, createdAt])
   @@index([createdAt])
   @@index([status, createdAt])
+  // Storage → Clean up checks each stored file against builds.
+  @@index([storageConnectionId, storageObjectKey])
 }
 
 enum CommentStatus {

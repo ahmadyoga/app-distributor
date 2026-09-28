@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requirePublisher } from "@/lib/dal";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
@@ -219,33 +220,45 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
     };
   }
 
-  const build = await prisma.build.create({
-    data: {
-      applicationId: app.id,
-      version: data.version,
-      number: data.number,
-      feature: data.feature,
-      releaseNotes: data.releaseNotes || null,
-      developerId: user.id,
-      status: "PUBLISHED",
-      hasInspector: data.hasInspector,
-      environment: data.environment,
-      storageConnectionId: data.storageConnectionId,
-      storageObjectKey: data.storageObjectKey,
-      apkFileName: data.apkFileName,
-      apkSizeBytes: BigInt(data.apkSizeBytes),
-      tickets: parsedTickets.length > 0
-        ? {
-            create: parsedTickets.map((t) => ({
-              repo: t.repo,
-              number: t.number,
-              title: t.title,
-              htmlUrl: t.htmlUrl,
-            })),
-          }
-        : undefined,
-    },
-  });
+  let build;
+  try {
+    build = await prisma.build.create({
+      data: {
+        applicationId: app.id,
+        version: data.version,
+        number: data.number,
+        feature: data.feature,
+        releaseNotes: data.releaseNotes || null,
+        developerId: user.id,
+        status: "PUBLISHED",
+        hasInspector: data.hasInspector,
+        environment: data.environment,
+        storageConnectionId: data.storageConnectionId,
+        storageObjectKey: data.storageObjectKey,
+        apkFileName: data.apkFileName,
+        apkSizeBytes: BigInt(data.apkSizeBytes),
+        tickets: parsedTickets.length > 0
+          ? {
+              create: parsedTickets.map((t) => ({
+                repo: t.repo,
+                number: t.number,
+                title: t.title,
+                htmlUrl: t.htmlUrl,
+              })),
+            }
+          : undefined,
+      },
+    });
+  } catch (err) {
+    // Lost a race with another publish of the same number (unique constraint).
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return {
+        ok: false,
+        errors: { number: [`Build ${data.number} already exists for this app.`] },
+      };
+    }
+    throw err;
+  }
 
   await prisma.storageConnection.update({
     where: { id: data.storageConnectionId },
