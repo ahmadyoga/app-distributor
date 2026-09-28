@@ -5,43 +5,45 @@ export async function listApplications() {
   const apps = await prisma.application.findMany({
     orderBy: { name: "asc" },
     include: {
-      defaultStorage: true,
       builds: {
         orderBy: { createdAt: "desc" },
         take: 1,
-        include: { developer: true },
+        select: { number: true, version: true },
       },
       _count: { select: { builds: true } },
     },
   });
 
-  return Promise.all(
-    apps.map(async (app) => {
-      const agg = await prisma.build.aggregate({
-        where: { applicationId: app.id },
-        _sum: { apkSizeBytes: true },
-      });
-      return {
-        ...app,
-        buildCount: app._count.builds,
-        usedBytes: agg._sum.apkSizeBytes ?? BigInt(0),
-        latest: app.builds[0] ?? null,
-      };
-    })
+  const sizeByApp = await prisma.build.groupBy({
+    by: ["applicationId"],
+    _sum: { apkSizeBytes: true },
+  });
+  const sizeMap = new Map(
+    sizeByApp.map((s) => [s.applicationId, s._sum.apkSizeBytes ?? BigInt(0)])
   );
+
+  return apps.map((app) => ({
+    ...app,
+    buildCount: app._count.builds,
+    usedBytes: sizeMap.get(app.id) ?? BigInt(0),
+    latest: app.builds[0] ?? null,
+  }));
 }
 
 export async function getApplicationBySlug(slug: string) {
   const app = await prisma.application.findUnique({
     where: { slug },
-    include: { defaultStorage: true },
+    include: { defaultStorage: { select: { name: true, provider: true } } },
   });
   if (!app) return null;
 
   const builds = await prisma.build.findMany({
     where: { applicationId: app.id },
     orderBy: { createdAt: "desc" },
-    include: { developer: true, tickets: true },
+    include: {
+      developer: { select: { name: true } },
+      _count: { select: { tickets: true } },
+    },
   });
 
   const groupsByVersion = new Map<string, typeof builds>();
@@ -70,7 +72,10 @@ export async function getBuild(slug: string, number: string) {
 
   const build = await prisma.build.findUnique({
     where: { applicationId_number: { applicationId: app.id, number } },
-    include: { developer: true, storageConnection: true, tickets: { orderBy: { createdAt: "asc" } } },
+    include: {
+      developer: { select: { name: true } },
+      tickets: { orderBy: { createdAt: "asc" } },
+    },
   });
   if (!build) return null;
 
@@ -81,7 +86,7 @@ export async function getBuild(slug: string, number: string) {
       number: { not: number },
     },
     orderBy: { createdAt: "desc" },
-    include: { developer: true },
+    include: { developer: { select: { name: true } } },
   });
 
   return { app, build, siblings };
@@ -91,7 +96,11 @@ export async function getRecentBuilds(limit = 7) {
   return prisma.build.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,
-    include: { developer: true, application: true, tickets: true },
+    include: {
+      developer: { select: { name: true } },
+      application: { select: { slug: true, name: true } },
+      _count: { select: { tickets: true } },
+    },
   });
 }
 
@@ -126,7 +135,16 @@ export async function getDashboardStats() {
 export async function listStorageConnections() {
   const connections = await prisma.storageConnection.findMany({
     orderBy: { createdAt: "asc" },
-    include: { applications: true },
+    select: {
+      id: true,
+      name: true,
+      provider: true,
+      accountLabel: true,
+      isDefault: true,
+      usedBytesApprox: true,
+      createdAt: true,
+      applications: { select: { id: true, name: true } },
+    },
   });
   return connections;
 }
@@ -134,6 +152,6 @@ export async function listStorageConnections() {
 export async function getApplicationStorageMap() {
   return prisma.application.findMany({
     orderBy: { name: "asc" },
-    include: { defaultStorage: true },
+    include: { defaultStorage: { select: { name: true } } },
   });
 }

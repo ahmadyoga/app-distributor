@@ -97,7 +97,7 @@ export default async function DashboardPage() {
               <span style={{ minWidth: 0 }}>
                 <span className={styles.ellipsis}>{b.feature}</span>
                 <span className={styles.subCell}>
-                  {b.tickets?.length ? `${b.tickets.length} ticket${b.tickets.length > 1 ? "s" : ""} linked` : "No tickets linked"}
+                  {b._count.tickets ? `${b._count.tickets} ticket${b._count.tickets > 1 ? "s" : ""} linked` : "No tickets linked"}
                 </span>
               </span>
               <span className={styles.ellipsis} style={{ color: "var(--ink-soft)" }}>

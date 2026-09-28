@@ -91,6 +91,9 @@ model Build {
   tickets BuildTicket[]
 
   @@unique([applicationId, number])
+  @@index([applicationId, createdAt])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 enum CommentStatus {
