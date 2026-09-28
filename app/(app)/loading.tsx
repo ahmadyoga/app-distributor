@@ -1,22 +1,23 @@
-import { Skeleton } from "@/components/ui/Misc";
-import { TableWrap, TableRow } from "@/components/ui/Table";
+import { HeaderSkeleton, TableSkeleton, CardSkeleton } from "@/components/ui/Skeletons";
 
+// Dashboard (/) — also the fallback for any route without its own loading.tsx.
 export default function Loading() {
   return (
-    <div>
-      <div style={{ marginBottom: 24 }}>
-        <Skeleton width="180px" height="22px" />
-        <div style={{ marginTop: 8 }}>
-          <Skeleton width="240px" height="13px" />
-        </div>
-      </div>
-      <TableWrap>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <TableRow columns="1fr" key={i}>
-            <Skeleton width="100%" height="16px" />
-          </TableRow>
+    <div aria-busy="true" aria-label="Loading overview">
+      <HeaderSkeleton />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 12,
+          marginBottom: 26,
+        }}
+      >
+        {Array.from({ length: 4 }).map((_, i) => (
+          <CardSkeleton key={i} lines={3} />
         ))}
-      </TableWrap>
+      </div>
+      <TableSkeleton columns="70px minmax(0,1.6fr) minmax(0,1fr) 90px 110px 96px" rows={7} />
     </div>
   );
 }

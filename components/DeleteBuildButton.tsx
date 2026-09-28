@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { deleteBuild } from "@/app/actions/apps";
 import { Button } from "@/components/ui/Button";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 export function DeleteBuildButton({ buildId }: { buildId: string }) {
   const [confirming, setConfirming] = useState(false);
@@ -22,9 +23,9 @@ export function DeleteBuildButton({ buildId }: { buildId: string }) {
       </span>
       <form action={deleteBuild}>
         <input type="hidden" name="id" value={buildId} />
-        <Button type="submit" variant="danger" size="sm">
+        <SubmitButton variant="danger" size="sm" pendingLabel="Deleting…">
           Yes, delete
-        </Button>
+        </SubmitButton>
       </form>
       <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(false)}>
         Cancel

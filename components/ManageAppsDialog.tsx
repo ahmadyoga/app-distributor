@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { addApplication, updateApplication, deleteApplication } from "@/app/actions/apps";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { Button, TextLinkButton } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { Tile } from "@/components/ui/Tile";
@@ -221,7 +222,7 @@ export function ManageAppsDialog({ apps }: { apps: App[] }) {
                           <span style={{ fontSize: 12, color: "var(--danger)" }}>Delete?</span>
                           <form action={deleteApplication}>
                             <input type="hidden" name="id" value={app.id} />
-                            <Button type="submit" variant="danger" size="sm">Yes</Button>
+                            <SubmitButton variant="danger" size="sm" pendingLabel="Deleting…">Yes</SubmitButton>
                           </form>
                           <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(null)}>
                             No

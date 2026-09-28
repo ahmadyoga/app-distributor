@@ -4,8 +4,9 @@ import { Logo } from "@/components/ui/Misc";
 import { DevAvatar } from "@/components/ui/Tile";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { NavLink } from "@/components/ui/NavLink";
-import { TextLinkButton } from "@/components/ui/Button";
 import { GridIcon, AppsIcon, StorageIcon } from "@/components/ui/icons";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { NavProgress } from "@/components/NavProgress";
 import styles from "./shell.module.css";
 
 export default async function AppLayout({
@@ -18,6 +19,7 @@ export default async function AppLayout({
 
   return (
     <div className={styles.shell}>
+      <NavProgress />
       <div className={styles.topbar}>
         <Logo />
         <div className={styles.topbarRight}>
@@ -34,7 +36,9 @@ export default async function AppLayout({
             </div>
           </div>
           <form action={logout}>
-            <TextLinkButton type="submit">Sign out</TextLinkButton>
+            <SubmitButton link pendingLabel="Signing out…">
+              Sign out
+            </SubmitButton>
           </form>
         </div>
       </div>

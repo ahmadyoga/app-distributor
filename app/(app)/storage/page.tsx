@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { isGoogleDriveConfigured } from "@/lib/storage/gdrive";
 import { formatBytes } from "@/lib/format";
 import { setDefaultConnection, disconnectConnection } from "@/app/actions/storage";
-import { Button } from "@/components/ui/Button";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { Tile } from "@/components/ui/Tile";
 import { TableWrap, TableHeadRow, TableRow } from "@/components/ui/Table";
 import { AddStorageDialog } from "@/components/AddStorageDialog";
@@ -102,15 +102,15 @@ export default async function StoragePage() {
                     <CleanupStorageDialog storageConnectionId={c.id} connectionName={c.name} />
                     <form action={setDefaultConnection}>
                       <input type="hidden" name="id" value={c.id} />
-                      <Button type="submit" variant="ghost" size="sm" disabled={c.isDefault}>
+                      <SubmitButton variant="ghost" size="sm" disabled={c.isDefault} pendingLabel="Saving…">
                         {c.isDefault ? "Default" : "Set default"}
-                      </Button>
+                      </SubmitButton>
                     </form>
                     <form action={disconnectConnection}>
                       <input type="hidden" name="id" value={c.id} />
-                      <Button type="submit" variant="danger" size="sm">
+                      <SubmitButton variant="danger" size="sm" pendingLabel="Disconnecting…">
                         Disconnect
-                      </Button>
+                      </SubmitButton>
                     </form>
                   </>
                 )}

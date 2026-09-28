@@ -1,0 +1,31 @@
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  height: 2px;
+  width: 0;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease 0.1s, width 0.2s ease;
+}
+/* Creeps toward 90% and waits there until the route commits. */
+.active {
+  opacity: 1;
+  transition: opacity 0s;
+  animation: creep 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+@keyframes creep {
+  0% { width: 0; }
+  10% { width: 35%; }
+  100% { width: 90%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .active {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
+}
