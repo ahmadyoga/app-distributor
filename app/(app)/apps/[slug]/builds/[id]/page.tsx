@@ -5,9 +5,8 @@ import { getCurrentUser } from "@/lib/dal";
 import { absoluteUrl } from "@/lib/url";
 import { StatusTag, toneForBuildStatus, toneForEnvironment } from "@/components/ui/StatusTag";
 import { Tile } from "@/components/ui/Tile";
-import { LinkButton } from "@/components/ui/Button";
 import { SectionLabel } from "@/components/ui/Field";
-import { DownloadIcon } from "@/components/ui/icons";
+import { DownloadButton } from "@/components/DownloadButton";
 import terminal from "@/components/ui/terminal.module.css";
 import styles from "./build.module.css";
 import { DeleteBuildButton } from "@/components/DeleteBuildButton";
@@ -125,14 +124,7 @@ export default async function BuildPage({
               </div>
             ) : (
               <div>
-                <LinkButton
-                  href={`/api/builds/${build.id}/download`}
-                  variant="primary"
-                  size="lg"
-                  block
-                >
-                  <DownloadIcon /> Download APK
-                </LinkButton>
+                <DownloadButton href={`/api/builds/${build.id}/download`} />
                 <div className={styles.fileLine}>
                   {build.apkFileName ?? "apk"}
                   {build.apkSizeBytes

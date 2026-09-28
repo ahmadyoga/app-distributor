@@ -21,8 +21,11 @@ export function NavProgress() {
   }
 
   useEffect(() => {
+    // Capture phase: next/link calls preventDefault() in its own (bubbling)
+    // React handler, so a bubbling listener would see every Link click as
+    // already handled and never start the bar.
     function onClick(e: MouseEvent) {
-      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.button !== 0) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const a = (e.target as Element).closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
@@ -31,8 +34,8 @@ export function NavProgress() {
       if (url.pathname === location.pathname && url.search === location.search) return;
       setActive(url.pathname);
     }
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
+    document.addEventListener("click", onClick, { capture: true });
+    return () => document.removeEventListener("click", onClick, { capture: true });
   }, []);
 
   // Safety net: never leave the bar stuck if a navigation is abandoned.

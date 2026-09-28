@@ -4,9 +4,8 @@ import { prisma } from "@/lib/db";
 import { formatBytes } from "@/lib/format";
 import { StatusTag, toneForEnvironment } from "@/components/ui/StatusTag";
 import { Tile } from "@/components/ui/Tile";
-import { LinkButton } from "@/components/ui/Button";
 import { Logo } from "@/components/ui/Misc";
-import { DownloadIcon } from "@/components/ui/icons";
+import { DownloadButton } from "@/components/DownloadButton";
 import terminal from "@/components/ui/terminal.module.css";
 import styles from "./share.module.css";
 
@@ -102,9 +101,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             </div>
           ) : (
             <>
-              <LinkButton href={`/api/share/${token}/download`} variant="primary" size="lg" block>
-                <DownloadIcon /> Download APK
-              </LinkButton>
+              <DownloadButton href={`/api/share/${token}/download`} />
               <div className={styles.fileLine}>
                 {build.apkFileName ?? "app.apk"}
                 {build.apkSizeBytes ? ` · ${formatBytes(build.apkSizeBytes)}` : ""}
