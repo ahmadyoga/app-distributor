@@ -118,6 +118,31 @@ export async function getBuild(slug: string, id: string) {
   return { app: build.application, build, siblings };
 }
 
+/** Build detail by id alone — for clients (e.g. mobile) that already know the app from a prior list call. */
+export async function getBuildById(id: string) {
+  const build = await prisma.build.findUnique({
+    where: { id },
+    include: {
+      application: true,
+      developer: { select: { name: true } },
+      tickets: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!build) return null;
+
+  const siblings = await prisma.build.findMany({
+    where: {
+      applicationId: build.applicationId,
+      version: build.version,
+      id: { not: build.id },
+    },
+    orderBy: { createdAt: "desc" },
+    include: { developer: { select: { name: true } } },
+  });
+
+  return { app: build.application, build, siblings };
+}
+
 export async function getRecentBuilds(limit = 7) {
   return prisma.build.findMany({
     orderBy: { createdAt: "desc" },
