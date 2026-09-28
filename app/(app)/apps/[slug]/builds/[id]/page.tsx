@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBuild } from "@/lib/queries";
-import { StatusTag, toneForBuildStatus } from "@/components/ui/StatusTag";
+import { getCurrentUser } from "@/lib/dal";
+import { absoluteUrl } from "@/lib/url";
+import { StatusTag, toneForBuildStatus, toneForEnvironment } from "@/components/ui/StatusTag";
 import { Tile } from "@/components/ui/Tile";
 import { LinkButton } from "@/components/ui/Button";
 import { SectionLabel } from "@/components/ui/Field";
@@ -9,18 +11,18 @@ import { DownloadIcon } from "@/components/ui/icons";
 import terminal from "@/components/ui/terminal.module.css";
 import styles from "./build.module.css";
 import { DeleteBuildButton } from "@/components/DeleteBuildButton";
-import { ShareBuildButton } from "@/components/ShareBuildButton";
+import { SharePanel } from "@/components/SharePanel";
 import { TicketCommentStatus } from "@/components/TicketCommentStatus";
 
 export default async function BuildPage({
   params,
-}: PageProps<"/apps/[slug]/builds/[number]">) {
-  const { slug, number } = await params;
-  const data = await getBuild(slug, number);
+}: PageProps<"/apps/[slug]/builds/[id]">) {
+  const { slug, id } = await params;
+  const [data, user] = await Promise.all([getBuild(slug, id), getCurrentUser()]);
   if (!data) notFound();
 
   const { app, build, siblings } = data;
-  const buildUrl = `buildapp.com/apps/${app.slug}/builds/${build.number}`;
+  const canManage = user.role === "PUBLISHER";
   const notes = (build.releaseNotes ?? "")
     .split("\n")
     .map((n) => n.trim())
@@ -29,20 +31,15 @@ export default async function BuildPage({
   return (
     <div>
       <div className={styles.topbar}>
-        <div
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: "var(--r-sm)",
-            background: "var(--primary-bg)",
-          }}
-        />
-        <span className={styles.path}>{buildUrl}</span>
-        <LinkButton href={`/apps/${app.slug}`} variant="ghost" size="sm">
-          All builds
-        </LinkButton>
-        <DeleteBuildButton buildId={build.id} />
-        <ShareBuildButton buildId={build.id} existingToken={build.shareToken ?? null} />
+        <nav className={styles.path} aria-label="Breadcrumb">
+          <Link href="/apps">Applications</Link> / <Link href={`/apps/${app.slug}`}>{app.name}</Link>{" "}
+          / <span style={{ color: "var(--ink)" }}>Build {build.number}</span>
+        </nav>
+        {canManage && (
+          <span style={{ marginLeft: "auto" }}>
+            <DeleteBuildButton buildId={build.id} />
+          </span>
+        )}
       </div>
 
       <div className={styles.grid}>
@@ -60,6 +57,8 @@ export default async function BuildPage({
               <span className={terminal.buildNo}>Build {build.number}</span>
               <span className={terminal.versionTag}>v{build.version}</span>
               <StatusTag tone={toneForBuildStatus(build.status)}>{build.status}</StatusTag>
+              <StatusTag tone={toneForEnvironment(build.environment)}>{build.environment}</StatusTag>
+              {build.hasInspector && <StatusTag tone="warn">Inspector</StatusTag>}
             </div>
             <h2 className={styles.feature}>{build.feature}</h2>
             {build.tickets.length > 0 ? (
@@ -147,10 +146,13 @@ export default async function BuildPage({
 
             <div style={{ display: "flex", flexDirection: "column" }}>
               {[
-                { k: "Application", v: app.name },
                 { k: "Version", v: `v${build.version}`, mono: true },
                 { k: "Build number", v: build.number, mono: true },
-                { k: "Feature", v: build.feature },
+                {
+                  k: "Environment",
+                  v: build.environment === "STAGING" ? "Staging" : "Production",
+                },
+                { k: "Inspector", v: build.hasInspector ? "Included" : "Not included" },
                 { k: "Developer", v: build.developer.name },
                 {
                   k: "Created",
@@ -174,6 +176,12 @@ export default async function BuildPage({
             </div>
           </div>
 
+          <SharePanel
+            buildId={build.id}
+            initialUrl={build.shareToken ? absoluteUrl(`/share/${build.shareToken}`) : null}
+            canManage={canManage}
+          />
+
           {siblings.length > 0 && (
             <div>
               <SectionLabel>Other builds in v{build.version}</SectionLabel>
@@ -181,7 +189,7 @@ export default async function BuildPage({
                 {siblings.map((s) => (
                   <Link
                     key={s.id}
-                    href={`/apps/${app.slug}/builds/${s.number}`}
+                    href={`/apps/${app.slug}/builds/${s.id}`}
                     className={terminal.siblingRow}
                   >
                     <span
@@ -206,10 +214,6 @@ export default async function BuildPage({
             </div>
           )}
         </div>
-      </div>
-
-      <div style={{ marginTop: 24 }}>
-        <ShareBuildButton buildId={build.id} existingToken={build.shareToken ?? null} link />
       </div>
 
       {build.tickets.length > 0 && (

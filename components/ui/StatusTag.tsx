@@ -33,3 +33,7 @@ export function StatusTag({
 export function toneForBuildStatus(status: "PROCESSING" | "PUBLISHED"): Tone {
   return status === "PUBLISHED" ? "ok" : "warn";
 }
+
+export function toneForEnvironment(environment: "PRODUCTION" | "STAGING"): Tone {
+  return environment === "PRODUCTION" ? "ok" : "warn";
+}

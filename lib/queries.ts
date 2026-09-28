@@ -2,22 +2,23 @@ import "server-only";
 import { prisma } from "./db";
 
 export async function listApplications() {
-  const apps = await prisma.application.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      builds: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { number: true, version: true },
+  const [apps, sizeByApp] = await Promise.all([
+    prisma.application.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        builds: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { number: true, version: true, environment: true },
+        },
+        _count: { select: { builds: true } },
       },
-      _count: { select: { builds: true } },
-    },
-  });
-
-  const sizeByApp = await prisma.build.groupBy({
-    by: ["applicationId"],
-    _sum: { apkSizeBytes: true },
-  });
+    }),
+    prisma.build.groupBy({
+      by: ["applicationId"],
+      _sum: { apkSizeBytes: true },
+    }),
+  ]);
   const sizeMap = new Map(
     sizeByApp.map((s) => [s.applicationId, s._sum.apkSizeBytes ?? BigInt(0)])
   );
@@ -66,30 +67,28 @@ export async function getApplicationBySlug(slug: string) {
   };
 }
 
-export async function getBuild(slug: string, number: string) {
-  const app = await prisma.application.findUnique({ where: { slug } });
-  if (!app) return null;
-
+export async function getBuild(slug: string, id: string) {
   const build = await prisma.build.findUnique({
-    where: { applicationId_number: { applicationId: app.id, number } },
+    where: { id },
     include: {
+      application: true,
       developer: { select: { name: true } },
       tickets: { orderBy: { createdAt: "asc" } },
     },
   });
-  if (!build) return null;
+  if (!build || build.application.slug !== slug) return null;
 
   const siblings = await prisma.build.findMany({
     where: {
-      applicationId: app.id,
+      applicationId: build.applicationId,
       version: build.version,
-      number: { not: number },
+      id: { not: build.id },
     },
     orderBy: { createdAt: "desc" },
     include: { developer: { select: { name: true } } },
   });
 
-  return { app, build, siblings };
+  return { app: build.application, build, siblings };
 }
 
 export async function getRecentBuilds(limit = 7) {

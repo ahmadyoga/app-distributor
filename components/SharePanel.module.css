@@ -1,0 +1,57 @@
+.panel {
+  border: var(--bw) solid var(--line);
+  background: var(--card);
+  padding: 16px 18px 18px;
+}
+.linkRow {
+  display: flex;
+  gap: 8px;
+}
+.linkInput {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.linkInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 10px 0 12px;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.action {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+.action:hover {
+  text-decoration: underline;
+}
+.confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.error {
+  font-size: 12px;
+  color: var(--danger);
+  margin-top: 10px;
+}

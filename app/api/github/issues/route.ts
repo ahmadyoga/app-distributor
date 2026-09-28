@@ -5,9 +5,9 @@ import { searchIssues } from "@/lib/github";
 export async function GET(req: NextRequest) {
   await getCurrentUser();
   const repo = req.nextUrl.searchParams.get("repo");
-  const query = req.nextUrl.searchParams.get("q");
-  if (!repo || !query) {
-    return NextResponse.json({ error: "repo and q are required" }, { status: 400 });
+  const query = req.nextUrl.searchParams.get("q") ?? "";
+  if (!repo) {
+    return NextResponse.json({ error: "repo is required" }, { status: 400 });
   }
   try {
     const issues = await searchIssues(repo, query);

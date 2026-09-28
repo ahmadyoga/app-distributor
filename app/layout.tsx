@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { absoluteUrl } from "@/lib/url";
 
 const plexMono = IBM_Plex_Mono({
   variable: "--font-plex-mono",
@@ -9,6 +10,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(absoluteUrl()),
   title: "BuildApp",
   description:
     "BuildApp is a centralized build distribution platform that helps development teams publish, identify, store, and share application builds together with the feature context behind them.",

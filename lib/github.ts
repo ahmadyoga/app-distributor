@@ -1,4 +1,5 @@
 import "server-only";
+import { absoluteUrl } from "@/lib/url";
 
 const ORG = "GO-Bimbel";
 const BASE = "https://api.github.com";
@@ -33,7 +34,7 @@ export async function listOrgRepos(): Promise<GithubRepo[]> {
 
   while (true) {
     const res = await fetch(
-      `${BASE}/orgs/${ORG}/repos?type=all&sort=full_name&per_page=100&page=${page}`,
+      `${BASE}/orgs/${ORG}/repos?type=all&sort=pushed&per_page=100&page=${page}`,
       { headers: headers(), next: { revalidate: 300 } }
     );
     if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
@@ -60,11 +61,12 @@ export async function searchIssues(
   repo: string,
   query: string
 ): Promise<GithubIssue[]> {
-  const isNumber = /^\d+$/.test(query.trim());
+  const trimmed = query.trim().replace(/^#/, "");
+  const isNumber = /^\d+$/.test(trimmed);
 
   if (isNumber) {
     const res = await fetch(
-      `${BASE}/repos/${ORG}/${repo}/issues/${query.trim()}`,
+      `${BASE}/repos/${ORG}/${repo}/issues/${trimmed}`,
       { headers: headers(), next: { revalidate: 0 } }
     );
     if (res.status === 404) return [];
@@ -89,7 +91,10 @@ export async function searchIssues(
   }
 
   const q = encodeURIComponent(
-    `${query} repo:${ORG}/${repo} is:issue`
+    // Empty query lists the most recently updated open issues.
+    trimmed
+      ? `${trimmed} repo:${ORG}/${repo} is:issue`
+      : `repo:${ORG}/${repo} is:issue is:open`
   );
   const res = await fetch(
     `${BASE}/search/issues?q=${q}&per_page=10&sort=updated`,
@@ -122,6 +127,7 @@ export async function postBuildComment({
   issueNumber,
   appName,
   appSlug,
+  buildId,
   buildNumber,
   version,
   feature,
@@ -132,15 +138,15 @@ export async function postBuildComment({
   issueNumber: number;
   appName: string;
   appSlug: string;
+  buildId: string;
   buildNumber: string;
   version: string;
   feature: string;
   developerName: string;
   apkSizeBytes: number;
 }): Promise<void> {
-  const baseUrl = process.env.BASE_URL ?? "http://localhost:3000";
   const sizeMb = (apkSizeBytes / 1024 / 1024).toFixed(1);
-  const buildUrl = `${baseUrl}/apps/${appSlug}/builds/${buildNumber}`;
+  const buildUrl = absoluteUrl(`/apps/${appSlug}/builds/${buildId}`);
 
   const body = [
     `### 🚀 Build Published — ${appName}`,

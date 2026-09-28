@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { requirePublisher } from "@/lib/dal";
+import { absoluteUrl } from "@/lib/url";
+import { removeStoredObject } from "@/lib/storage/removeObject";
 import { ApplicationSchema, type FormState } from "@/app/lib/definitions";
 
 export async function addApplication(
@@ -91,11 +93,39 @@ export async function deleteBuild(formData: FormData) {
   const id = String(formData.get("id"));
   const build = await prisma.build.findUnique({
     where: { id },
-    include: { application: true },
+    include: { application: true, storageConnection: true },
   });
   if (!build) throw new Error("Build not found");
-  await prisma.build.delete({ where: { id } });
+
+  // Row first, file second: if the file removal fails, the APK is merely
+  // unlinked and shows up in Storage → Clean up, instead of a build that
+  // points at a missing file.
+  await prisma.$transaction(async (tx) => {
+    await tx.build.delete({ where: { id } });
+    if (build.storageConnectionId && build.apkSizeBytes) {
+      await tx.storageConnection.update({
+        where: { id: build.storageConnectionId },
+        data: { usedBytesApprox: { decrement: build.apkSizeBytes } },
+      });
+      // The counter is approximate — never let it go negative.
+      await tx.storageConnection.updateMany({
+        where: { id: build.storageConnectionId, usedBytesApprox: { lt: 0 } },
+        data: { usedBytesApprox: 0 },
+      });
+    }
+  });
+
+  if (build.storageConnection && build.storageObjectKey) {
+    try {
+      await removeStoredObject(build.storageConnection, build.storageObjectKey);
+    } catch (err) {
+      console.error(`deleteBuild: could not remove stored APK for ${id}`, err);
+    }
+  }
+
   revalidatePath(`/apps/${build.application.slug}`);
+  revalidatePath("/storage");
+  revalidatePath("/");
   redirect(`/apps/${build.application.slug}`);
 }
 
@@ -106,10 +136,7 @@ export async function generateShareToken(buildId: string): Promise<string> {
     select: { shareToken: true },
   });
   if (!existing) throw new Error("Build not found");
-  if (existing.shareToken) {
-    const base = process.env.BASE_URL ?? "http://localhost:3000";
-    return `${base}/share/${existing.shareToken}`;
-  }
+  if (existing.shareToken) return absoluteUrl(`/share/${existing.shareToken}`);
 
   const token = randomBytes(18).toString("base64url");
   await prisma.build.update({
@@ -117,6 +144,16 @@ export async function generateShareToken(buildId: string): Promise<string> {
     data: { shareToken: token },
   });
   revalidatePath(`/share/${token}`);
-  const base = process.env.BASE_URL ?? "http://localhost:3000";
-  return `${base}/share/${token}`;
+  return absoluteUrl(`/share/${token}`);
+}
+
+/** Kills the public link; a later share creates a new, different token. */
+export async function revokeShareToken(buildId: string): Promise<void> {
+  await requirePublisher();
+  const build = await prisma.build.update({
+    where: { id: buildId },
+    data: { shareToken: null },
+    select: { application: { select: { slug: true } } },
+  });
+  revalidatePath(`/apps/${build.application.slug}/builds/${buildId}`);
 }

@@ -9,10 +9,15 @@
 }
 
 .path {
-  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--ink-soft);
+  color: var(--muted);
   overflow-wrap: anywhere;
+}
+.path a {
+  color: inherit;
+}
+.path a:hover {
+  color: var(--accent);
 }
 
 .grid {

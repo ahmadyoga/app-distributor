@@ -16,7 +16,8 @@ export default async function NewBuildPage({
   if (!data) notFound();
   if (user.role === "VIEWER") redirect(`/apps/${slug}`);
 
-  const { app, latest } = data;
+  const { app, latest, versionGroups } = data;
+  const existingNumbers = versionGroups.flatMap((g) => g.builds.map((b) => b.number));
   const provider = app.defaultStorage?.provider ?? null;
 
   const suggestedNumber = latest?.number && /^\d+$/.test(latest.number)
@@ -24,7 +25,7 @@ export default async function NewBuildPage({
     : "";
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div style={{ maxWidth: 1080 }}>
       <div className={styles.breadcrumb}>
         <Link href={`/apps/${app.slug}`}>{app.name}</Link> / New build
       </div>
@@ -32,18 +33,18 @@ export default async function NewBuildPage({
         Create build
       </h1>
       <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 26, maxWidth: "58ch", lineHeight: 1.6 }}>
-        Version, build number and feature are required. Everything else is
-        context that travels with the APK.
+        Drop the APK first — version and build number are read from it.
+        Then say which environment it targets and what feature it carries.
       </p>
 
       <CreateBuildForm
         applicationId={app.id}
-        applicationName={app.name}
         storageName={app.defaultStorage?.name ?? null}
         storageProvider={provider}
         suggestedVersion={latest?.version ?? ""}
         suggestedNumber={suggestedNumber}
         lastNumber={latest?.number ?? null}
+        existingNumbers={existingNumbers}
       />
     </div>
   );

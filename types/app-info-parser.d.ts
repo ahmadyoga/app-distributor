@@ -12,5 +12,6 @@ declare module "app-info-parser/src/apk" {
   export default class ApkParser {
     constructor(file: File | Blob);
     parse(): Promise<ApkInfo>;
+    getEntries(regexps: RegExp[]): Promise<Record<string, Uint8Array>>;
   }
 }

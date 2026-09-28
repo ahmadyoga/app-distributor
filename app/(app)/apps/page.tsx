@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listApplications } from "@/lib/queries";
 import { formatBytes } from "@/lib/format";
 import { Tile } from "@/components/ui/Tile";
+import { StatusTag, toneForEnvironment } from "@/components/ui/StatusTag";
 import { TableWrap, TableHeadRow, TableRow } from "@/components/ui/Table";
 import styles from "../dashboard.module.css";
 
@@ -66,8 +67,17 @@ export default async function ApplicationsPage() {
               <span style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>
                 {formatBytes(app.usedBytes)}
               </span>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                {app.latest ? `${app.latest.number} / v${app.latest.version}` : "—"}
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)" }}>
+                {app.latest ? (
+                  <>
+                    {app.latest.number} / v{app.latest.version}
+                    <StatusTag tone={toneForEnvironment(app.latest.environment)}>
+                      {app.latest.environment}
+                    </StatusTag>
+                  </>
+                ) : (
+                  "—"
+                )}
               </span>
             </TableRow>
           </Link>

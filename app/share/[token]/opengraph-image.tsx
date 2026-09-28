@@ -32,9 +32,10 @@ export default async function Image({
   const version = build ? `v${build.version}` : "";
   const buildNo = build ? `Build ${build.number}` : "";
   const developer = build?.developer.name ?? "";
-  const status = build?.status ?? "PUBLISHED";
-  const statusLabel = status === "PUBLISHED" ? "PUBLISHED" : "PROCESSING";
-  const statusColor = status === "PUBLISHED" ? "#c8ff3d" : "#ffc24b";
+  const platform = build?.application.platform ?? "Android";
+  // Testers care which backend the build hits more than its upload status.
+  const statusLabel = build?.environment ?? "PRODUCTION";
+  const statusColor = statusLabel === "PRODUCTION" ? "#c8ff3d" : "#ffc24b";
 
   return new ImageResponse(
     (
@@ -88,7 +89,7 @@ export default async function Image({
             <span style={{ fontSize: 22, fontWeight: 600, color: "#ededed" }}>
               {appName}
             </span>
-            <span style={{ fontSize: 14, color: "#9c9ca3" }}>Android, APK</span>
+            <span style={{ fontSize: 14, color: "#9c9ca3" }}>{platform}</span>
           </div>
 
           {/* spacer */}

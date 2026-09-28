@@ -22,6 +22,11 @@ enum BuildStatus {
   PUBLISHED
 }
 
+enum Environment {
+  PRODUCTION
+  STAGING
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -74,6 +79,8 @@ model Build {
   developerId String
 
   status BuildStatus @default(PROCESSING)
+  hasInspector Boolean @default(false)
+  environment  Environment @default(PRODUCTION)
 
   storageConnection   StorageConnection? @relation(fields: [storageConnectionId], references: [id])
   storageConnectionId String?
@@ -90,7 +97,6 @@ model Build {
 
   tickets BuildTicket[]
 
-  @@unique([applicationId, number])
   @@index([applicationId, createdAt])
   @@index([createdAt])
   @@index([status, createdAt])

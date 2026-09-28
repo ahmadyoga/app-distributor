@@ -1,14 +1,21 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
-import { StatusTag, toneForBuildStatus } from "@/components/ui/StatusTag";
+import { formatBytes } from "@/lib/format";
+import { StatusTag, toneForEnvironment } from "@/components/ui/StatusTag";
 import { Tile } from "@/components/ui/Tile";
 import { LinkButton } from "@/components/ui/Button";
-import { SectionLabel } from "@/components/ui/Field";
+import { Logo } from "@/components/ui/Misc";
 import { DownloadIcon } from "@/components/ui/icons";
 import terminal from "@/components/ui/terminal.module.css";
-import styles from "@/app/(app)/apps/[slug]/builds/[number]/build.module.css";
+import styles from "./share.module.css";
 
+async function getSharedBuild(token: string) {
+  return prisma.build.findUnique({
+    where: { shareToken: token },
+    include: { application: true, developer: { select: { name: true } } },
+  });
+}
 
 export async function generateMetadata({
   params,
@@ -16,170 +23,147 @@ export async function generateMetadata({
   params: Promise<{ token: string }>;
 }): Promise<Metadata> {
   const { token } = await params;
-  const build = await prisma.build.findUnique({
-    where: { shareToken: token },
-    include: { application: true, developer: true },
-  });
+  const build = await getSharedBuild(token);
 
-  if (!build) return { title: "Build not found" };
+  // Share links are unlisted — keep them out of search engines.
+  const robots = { index: false, follow: false };
+  if (!build) return { title: "Link unavailable — BuildApp", robots };
 
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "";
+  const env = build.environment === "STAGING" ? "Staging" : "Production";
+  const title = `${build.feature} — ${build.application.name}`;
+  const description = `Build ${build.number} · v${build.version} · ${env}`;
   return {
-    title: `${build.feature} — ${build.application.name} Build ${build.number}`,
-    description: `v${build.version} · ${build.developer.name}${build.releaseNotes ? " · " + build.releaseNotes.split("\n")[0].trim() : ""}`,
-    openGraph: {
-      title: `${build.feature} — ${build.application.name}`,
-      description: `Build ${build.number} · v${build.version} · by ${build.developer.name}`,
-      url: `${base}/share/${token}`,
-      siteName: "BuildApp",
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${build.feature} — ${build.application.name}`,
-      description: `Build ${build.number} · v${build.version} · by ${build.developer.name}`,
-    },
+    title: `${title} · Build ${build.number}`,
+    description,
+    robots,
+    openGraph: { title, description, url: `/share/${token}`, siteName: "BuildApp", type: "website" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 
-export default async function SharePage({
-  params,
-}: { params: Promise<{ token: string }> }) {
+export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-
-  const build = await prisma.build.findUnique({
-    where: { shareToken: token },
-    include: {
-      application: true,
-      developer: true,
-      tickets: { orderBy: { createdAt: "asc" } },
-    },
-  });
-
+  const build = await getSharedBuild(token);
   if (!build) notFound();
 
   const app = build.application;
+  const isStaging = build.environment === "STAGING";
   const notes = (build.releaseNotes ?? "")
     .split("\n")
     .map((n) => n.trim())
     .filter(Boolean);
+  const published = build.createdAt.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "var(--bg-outer)",
-        color: "var(--ink)",
-        fontFamily: "var(--font)",
-        padding: "32px 24px",
-        maxWidth: 900,
-        margin: "0 auto",
-      }}
-    >
-      <div className={styles.grid}>
-        <div className={styles.left}>
-          <div className={styles.headRow}>
-            <Tile size="lg">{app.initials}</Tile>
-            <div>
-              <h1 className={styles.appName}>{app.name}</h1>
-              <div className={styles.platform}>{app.platform}</div>
-            </div>
-          </div>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <Logo />
+        <span className={styles.headerNote}>Shared build</span>
+      </header>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div className={styles.badgeRow}>
-              <span className={terminal.buildNo}>Build {build.number}</span>
-              <span className={terminal.versionTag}>v{build.version}</span>
-              <StatusTag tone={toneForBuildStatus(build.status)}>
-                {build.status}
-              </StatusTag>
-            </div>
-            <h2 className={styles.feature}>{build.feature}</h2>
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>
-              {build.tickets?.length
-                ? `${build.tickets.length} ticket${build.tickets.length > 1 ? "s" : ""} linked`
-                : "No tickets linked"}
-            </p>
+      <main className={styles.main}>
+        <div className={styles.appRow}>
+          <Tile size="lg">{app.initials}</Tile>
+          <div style={{ minWidth: 0 }}>
+            <div className={styles.appName}>{app.name}</div>
+            <div className={styles.platform}>{app.platform}</div>
           </div>
+        </div>
 
-          {notes.length > 0 && (
-            <div className={styles.notesBlock}>
-              <SectionLabel>Release notes</SectionLabel>
-              <ul className={styles.notesList}>
-                {notes.map((n, i) => (
-                  <li key={i}>{n}</li>
-                ))}
-              </ul>
+        <div className={styles.eyebrow}>Feature</div>
+        <h1 className={styles.feature}>{build.feature}</h1>
+
+        <div className={styles.badges}>
+          <span className={terminal.buildNo}>Build {build.number}</span>
+          <span className={terminal.versionTag}>v{build.version}</span>
+          <StatusTag tone={toneForEnvironment(build.environment)}>{build.environment}</StatusTag>
+          {build.hasInspector && <StatusTag tone="warn">Inspector</StatusTag>}
+        </div>
+
+        {isStaging && (
+          <div className={styles.stagingNote}>
+            <strong>Staging build.</strong> It talks to test servers — use test accounts, not
+            real ones.
+          </div>
+        )}
+
+        <section className={styles.download}>
+          {build.status === "PROCESSING" ? (
+            <div className={styles.processing}>
+              <StatusTag tone="warn">Processing</StatusTag>
+              <p>
+                The APK is still uploading. Refresh this page in a minute — the link stays the
+                same.
+              </p>
             </div>
+          ) : (
+            <>
+              <LinkButton href={`/api/share/${token}/download`} variant="primary" size="lg" block>
+                <DownloadIcon /> Download APK
+              </LinkButton>
+              <div className={styles.fileLine}>
+                {build.apkFileName ?? "app.apk"}
+                {build.apkSizeBytes ? ` · ${formatBytes(build.apkSizeBytes)}` : ""}
+              </div>
+            </>
           )}
-        </div>
 
-        <div className={styles.right}>
-          <div className={styles.downloadCard}>
-            {build.status === "PROCESSING" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                  <StatusTag tone="warn">Processing</StatusTag>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>
-                    Preparing the APK
-                  </span>
-                </div>
-                <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
-                  This build is still uploading. The link already works and will
-                  serve the file once it lands.
-                </p>
-              </div>
-            ) : (
-              <div>
-                <LinkButton
-                  href={`/api/share/${token}/download`}
-                  variant="primary"
-                  size="lg"
-                  block
-                >
-                  <DownloadIcon /> Download APK
-                </LinkButton>
-                <div className={styles.fileLine}>
-                  {build.apkFileName ?? "apk"}
-                  {build.apkSizeBytes
-                    ? ` / ${(Number(build.apkSizeBytes) / 1024 / 1024).toFixed(1)} MB`
-                    : ""}
-                </div>
-              </div>
-            )}
+          <details className={styles.help}>
+            <summary>How to install on Android</summary>
+            <ol>
+              <li>Tap <strong>Download APK</strong> on your Android phone.</li>
+              <li>Open the downloaded file from the notification or your Downloads folder.</li>
+              <li>
+                If Android blocks it, allow <strong>Install unknown apps</strong> for your
+                browser, then go back and open the file again.
+              </li>
+              <li>
+                Seeing <strong>“App not installed”</strong>? Uninstall the version already on the
+                phone first — builds signed differently, or older than the installed one,
+                can&apos;t install over it.
+              </li>
+            </ol>
+          </details>
+        </section>
 
-            <div className={styles.divider} />
-
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {[
-                { k: "Application", v: app.name },
-                { k: "Version", v: `v${build.version}`, mono: true },
-                { k: "Build number", v: build.number, mono: true },
-                { k: "Feature", v: build.feature },
-                { k: "Developer", v: build.developer.name },
-                {
-                  k: "Created",
-                  v: build.createdAt.toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  }),
-                },
-              ].map((row) => (
-                <div className={styles.metaRow} key={row.k}>
-                  <span className={styles.metaKey}>{row.k}</span>
-                  <span
-                    className={styles.metaVal}
-                    style={row.mono ? { fontFamily: "var(--font-mono)" } : undefined}
-                  >
-                    {row.v}
-                  </span>
-                </div>
+        {notes.length > 0 && (
+          <section className={styles.section}>
+            <h2 className={styles.sectionLabel}>What&apos;s new</h2>
+            <ul className={styles.notes}>
+              {notes.map((n, i) => (
+                <li key={i}>{n}</li>
               ))}
-            </div>
-          </div>
-        </div>
-      </div>
+            </ul>
+          </section>
+        )}
+
+        <section className={styles.section}>
+          <h2 className={styles.sectionLabel}>Build details</h2>
+          <dl className={styles.meta}>
+            {[
+              ["Feature", build.feature],
+              ["Version", `v${build.version}`],
+              ["Build number", build.number],
+              ["Environment", isStaging ? "Staging" : "Production"],
+              ["Published", published],
+              ["Published by", build.developer.name],
+            ].map(([k, v]) => (
+              <div key={k} className={styles.metaRow}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      </main>
+
+      <footer className={styles.footer}>
+        Shared through BuildApp. The team can disable this link at any time.
+      </footer>
     </div>
   );
 }

@@ -5,12 +5,12 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requirePublisher } from "@/lib/dal";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
-import { presignS3Put, listS3Objects, deleteS3Object } from "@/lib/storage/s3";
+import { presignS3Put, listS3Objects } from "@/lib/storage/s3";
 import { postBuildComment } from "@/lib/github";
+import { removeStoredObject } from "@/lib/storage/removeObject";
 import {
   createResumableUploadSession,
   listDistributionFolderFiles,
-  trashDriveFile,
 } from "@/lib/storage/gdrive";
 import {
   S3ConnectionSchema,
@@ -163,7 +163,7 @@ export async function createGDriveUploadSession(
 }
 
 export type FinalizeBuildResult =
-  | { ok: true; appSlug: string; number: string }
+  | { ok: true; appSlug: string; id: string }
   | {
       ok: false;
       errors?: Partial<Record<"version" | "number" | "feature", string[]>>;
@@ -195,6 +195,8 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
     storageObjectKey: formData.get("storageObjectKey"),
     apkFileName: formData.get("apkFileName"),
     apkSizeBytes: formData.get("apkSizeBytes"),
+    hasInspector: formData.get("hasInspector"),
+    environment: formData.get("environment"),
   });
 
   if (!validated.success) {
@@ -206,13 +208,14 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
   const app = await prisma.application.findUnique({ where: { id: data.applicationId } });
   if (!app) return { ok: false, message: "Application not found." };
 
-  const existing = await prisma.build.findUnique({
-    where: { applicationId_number: { applicationId: app.id, number: data.number } },
+  const duplicate = await prisma.build.findFirst({
+    where: { applicationId: app.id, number: data.number },
+    select: { id: true },
   });
-  if (existing) {
+  if (duplicate) {
     return {
       ok: false,
-      message: `Build number ${data.number} already exists for ${app.name}.`,
+      errors: { number: [`Build ${data.number} already exists for this app.`] },
     };
   }
 
@@ -225,6 +228,8 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
       releaseNotes: data.releaseNotes || null,
       developerId: user.id,
       status: "PUBLISHED",
+      hasInspector: data.hasInspector,
+      environment: data.environment,
       storageConnectionId: data.storageConnectionId,
       storageObjectKey: data.storageObjectKey,
       apkFileName: data.apkFileName,
@@ -252,6 +257,7 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
     const commentArgs = {
       appName: app.name,
       appSlug: app.slug,
+      buildId: build.id,
       buildNumber: build.number,
       version: data.version,
       feature: data.feature,
@@ -286,7 +292,7 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
 
   revalidatePath(`/apps/${app.slug}`);
   revalidatePath("/");
-  return { ok: true, appSlug: app.slug, number: build.number };
+  return { ok: true, appSlug: app.slug, id: build.id };
 }
 
 export type UnlinkedFile = {
@@ -373,17 +379,7 @@ export async function deleteUnlinkedFile(
     throw new Error("This file is linked to a build — refusing to delete it.");
   }
 
-  if (connection.provider === "GOOGLE_DRIVE") {
-    const { refreshToken } = JSON.parse(
-      decryptSecret(connection.encryptedCredentials)
-    ) as { refreshToken: string };
-    await trashDriveFile(refreshToken, fileKey);
-  } else {
-    const creds = JSON.parse(
-      decryptSecret(connection.encryptedCredentials)
-    ) as S3Credentials;
-    await deleteS3Object(creds, fileKey);
-  }
+  await removeStoredObject(connection, fileKey);
 
   revalidatePath("/storage");
 }

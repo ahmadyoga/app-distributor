@@ -42,6 +42,9 @@ export const BuildFormSchema = z.object({
   storageObjectKey: z.string().min(1),
   apkFileName: z.string().min(1),
   apkSizeBytes: z.coerce.number().int().positive(),
+  // z.coerce.boolean() would turn the string "false" into true.
+  hasInspector: z.stringbool().optional().default(false),
+  environment: z.enum(["PRODUCTION", "STAGING"]),
 });
 
 export type FormState =

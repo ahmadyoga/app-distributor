@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getApplicationBySlug } from "@/lib/queries";
 import { getCurrentUser } from "@/lib/dal";
+import { absoluteUrl } from "@/lib/url";
 import { Tile } from "@/components/ui/Tile";
 import { LinkButton } from "@/components/ui/Button";
-import { StatusTag, toneForBuildStatus } from "@/components/ui/StatusTag";
+import { StatusTag, toneForBuildStatus, toneForEnvironment } from "@/components/ui/StatusTag";
 import { DevAvatar } from "@/components/ui/Tile";
 import { TableWrap, TableRow } from "@/components/ui/Table";
 import { SectionLabel } from "@/components/ui/Field";
@@ -25,7 +26,7 @@ export default async function ApplicationPage({
 
   const { app, latest, versionGroups } = data;
   const readOnly = user.role === "VIEWER";
-  const appUrl = `buildapp.com/apps/${app.slug}`;
+  const appUrl = absoluteUrl(`/apps/${app.slug}`);
 
   return (
     <div>
@@ -62,6 +63,7 @@ export default async function ApplicationPage({
                   {latest.number} / v{latest.version}
                 </span>
                 <StatusTag tone={toneForBuildStatus(latest.status)}>{latest.status}</StatusTag>
+                <StatusTag tone={toneForEnvironment(latest.environment)}>{latest.environment}</StatusTag>
               </div>
               <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>
                 {latest.feature}
@@ -69,7 +71,7 @@ export default async function ApplicationPage({
               <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>
                 {latest.developer.name}
               </div>
-              <LinkButton href={`/apps/${app.slug}/builds/${latest.number}`}>
+              <LinkButton href={`/apps/${app.slug}/builds/${latest.id}`}>
                 Open build page
               </LinkButton>
             </>
@@ -110,7 +112,7 @@ export default async function ApplicationPage({
             {group.builds.map((b) => (
               <Link
                 key={b.id}
-                href={`/apps/${app.slug}/builds/${b.number}`}
+                href={`/apps/${app.slug}/builds/${b.id}`}
                 style={{ color: "inherit", display: "contents" }}
               >
                 <TableRow columns={COLUMNS}>
@@ -154,7 +156,11 @@ export default async function ApplicationPage({
                       month: "short",
                     })}
                   </span>
-                  <StatusTag tone={toneForBuildStatus(b.status)}>{b.status}</StatusTag>
+                  <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <StatusTag tone={toneForBuildStatus(b.status)}>{b.status}</StatusTag>
+                    <StatusTag tone={toneForEnvironment(b.environment)}>{b.environment}</StatusTag>
+                    {b.hasInspector && <StatusTag tone="warn">Inspector</StatusTag>}
+                  </span>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted)", textAlign: "right" }}>
                     {b.apkSizeBytes ? `${(Number(b.apkSizeBytes) / 1024 / 1024).toFixed(1)} MB` : "—"}
                   </span>

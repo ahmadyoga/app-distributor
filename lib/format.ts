@@ -29,3 +29,9 @@ export function formatDate(date: Date): string {
     year: "numeric",
   });
 }
+
+/** Content-Disposition for a download, safe for quotes and non-ASCII names. */
+export function attachmentDisposition(filename: string): string {
+  const ascii = filename.replace(/[^\x20-\x7e]|["\\]/g, "_");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}

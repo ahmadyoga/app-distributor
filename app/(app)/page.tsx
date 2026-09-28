@@ -81,7 +81,7 @@ export default async function DashboardPage() {
         {recent.map((b) => (
           <Link
             key={b.id}
-            href={`/apps/${b.application.slug}/builds/${b.number}`}
+            href={`/apps/${b.application.slug}/builds/${b.id}`}
             style={{ color: "inherit", display: "contents" }}
           >
             <TableRow columns={COLUMNS}>

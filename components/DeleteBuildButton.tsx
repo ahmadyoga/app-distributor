@@ -17,7 +17,9 @@ export function DeleteBuildButton({ buildId }: { buildId: string }) {
 
   return (
     <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <span style={{ fontSize: 12, color: "var(--danger)" }}>Delete permanently?</span>
+      <span style={{ fontSize: 12, color: "var(--danger)" }}>
+        Delete build and its APK file?
+      </span>
       <form action={deleteBuild}>
         <input type="hidden" name="id" value={buildId} />
         <Button type="submit" variant="danger" size="sm">

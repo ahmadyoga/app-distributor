@@ -5,6 +5,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { presignS3Get } from "@/lib/storage/s3";
 import { fetchDriveFileStream } from "@/lib/storage/gdrive";
 import type { S3Credentials } from "@/lib/storage/s3";
+import { attachmentDisposition } from "@/lib/format";
 
 export async function GET(
   _req: Request,
@@ -42,7 +43,7 @@ export async function GET(
       "Content-Type":
         upstream.headers.get("content-type") ??
         "application/vnd.android.package-archive",
-      "Content-Disposition": `attachment; filename="${build.apkFileName ?? "build.apk"}"`,
+      "Content-Disposition": attachmentDisposition(build.apkFileName ?? "build.apk"),
     },
   });
 }

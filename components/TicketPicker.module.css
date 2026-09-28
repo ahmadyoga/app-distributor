@@ -4,55 +4,69 @@
   gap: 8px;
 }
 
+/* Linked issue chips */
 .chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  border: 1px solid var(--line-strong);
 }
-
 .chip {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
   background: var(--surface-2);
   font-size: 12px;
 }
-
+.chip:last-child {
+  border-bottom: 0;
+}
 .chipRepo {
   color: var(--muted);
-  font-family: var(--font-mono);
   flex-shrink: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
+.chipLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+}
+.chipLink:hover .chipTitle {
+  text-decoration: underline;
+}
 .chipNum {
-  font-family: var(--font-mono);
   font-weight: 700;
   color: var(--accent);
   flex-shrink: 0;
 }
-
 .chipTitle {
   color: var(--ink);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
 }
-
 .chipRemove {
   flex-shrink: 0;
-  margin-left: auto;
+  width: 22px;
+  height: 22px;
   background: transparent;
   border: 0;
   color: var(--muted);
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  padding: 0 2px;
   font-family: inherit;
 }
 .chipRemove:hover {
@@ -61,53 +75,128 @@
 
 .inputRow {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  align-items: stretch;
 }
 
-.repoSelect {
-  flex-shrink: 0;
+/* Repo trigger — joined to the search input as one control */
+.repoWrap {
+  position: relative;
+  flex: none;
+  width: 34%;
+  min-width: 140px;
+  max-width: 240px;
+}
+.repoTrigger {
+  width: 100%;
   height: 42px;
-  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
-  background: var(--card);
+  border-right: 0;
+  background: var(--surface-2);
   color: var(--ink);
+  font-family: inherit;
   font-size: 13px;
-  font-family: var(--font-mono);
-  max-width: 220px;
-  min-width: 120px;
   cursor: pointer;
+  text-align: left;
 }
-.repoSelect:disabled {
-  opacity: 0.5;
+.repoTrigger:hover:not(:disabled),
+.repoTrigger[aria-expanded="true"] {
+  background: var(--surface);
+  color: var(--accent);
+}
+.repoTrigger:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.repoTrigger:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.repoTriggerLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repoChevron {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
 }
 
+.repoDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  width: max(100%, 320px);
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.repoSearchInput {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.repoName {
+  display: block;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repoDesc {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Issue search */
 .searchWrap {
   position: relative;
   flex: 1;
   min-width: 0;
 }
-
 .searchInput {
-  padding-right: 32px !important;
+  padding-right: 34px !important;
+}
+.searchInput:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .spinner {
   position: absolute;
-  right: 11px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 14px;
-  height: 14px;
+  right: 12px;
+  top: 21px;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
   border: 2px solid var(--line-strong);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
-
 @keyframes spin {
-  to { transform: translateY(-50%) rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .dropdown {
@@ -117,13 +206,32 @@
   right: 0;
   z-index: 50;
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
   background: var(--card);
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.dropdownHead,
+.dropdownFoot {
+  padding: 7px 12px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dropdownHead {
+  border-bottom: 1px solid var(--line);
+}
+.dropdownFoot {
+  border-top: 1px solid var(--line);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-.dropdownItem {
+/* Shared listbox rows */
+.list {
+  max-height: 264px;
+  overflow-y: auto;
+}
+.option {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -137,22 +245,35 @@
   color: var(--ink);
   font-family: inherit;
 }
-.dropdownItem:last-child {
+.option:last-child {
   border-bottom: 0;
 }
-.dropdownItem:hover {
+.optionActive {
   background: var(--surface-2);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.optionLinked {
+  color: var(--muted);
+}
+.check {
+  width: 12px;
+  flex: none;
+  font-size: 11px;
+  color: var(--accent);
+}
+.empty {
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .issueNum {
-  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   color: var(--accent);
   flex-shrink: 0;
-  min-width: 38px;
+  min-width: 42px;
 }
-
 .issueTitle {
   font-size: 13px;
   flex: 1;
@@ -161,30 +282,43 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .issueState {
   flex-shrink: 0;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  padding: 2px 7px;
-  border-radius: var(--r-pill);
 }
-
+.issueState::before {
+  content: "[";
+}
+.issueState::after {
+  content: "]";
+}
 .stateOpen {
-  background: color-mix(in srgb, var(--ok) 15%, transparent);
   color: var(--ok);
 }
-
-.stateClosed {
-  background: var(--surface-2);
+.stateClosed,
+.stateLinked {
   color: var(--muted);
 }
 
-.dropdownEmpty {
-  padding: 12px;
-  font-size: 13px;
-  color: var(--muted);
-  text-align: center;
+.error {
+  font-size: 11px;
+  color: var(--danger);
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .inputRow {
+    flex-direction: column;
+  }
+  .repoWrap {
+    width: 100%;
+    max-width: none;
+  }
+  .repoTrigger {
+    border-right: 1px solid var(--line-strong);
+    border-bottom: 0;
+  }
 }
