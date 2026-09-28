@@ -51,7 +51,7 @@ export default function LoginPage() {
             </div>
           </form>
           <p style={{ fontSize: 12, color: "var(--muted)" }}>
-            New team? <Link href="/signup">Create a workspace</Link>. You can
+            New team? <Link href="/signup">Create an Account</Link>. You can
             connect storage after signing in.
           </p>
         </div>

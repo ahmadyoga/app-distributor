@@ -17,7 +17,7 @@ export default function SignupPage() {
         <div className={styles.formSide} style={{ maxWidth: 440, margin: "0 auto" }}>
           <Logo />
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <h1 className={styles.title}>Create a workspace</h1>
+            <h1 className={styles.title}>Create an Account</h1>
             <p className={styles.subtitle}>
               Your account can publish builds, connect storage, and share
               distribution links.
