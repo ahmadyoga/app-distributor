@@ -1,5 +1,4 @@
 import "server-only";
-import { absoluteUrl } from "@/lib/url";
 
 const ORG = "GO-Bimbel";
 const BASE = "https://api.github.com";
@@ -126,8 +125,7 @@ export async function postBuildComment({
   repo,
   issueNumber,
   appName,
-  appSlug,
-  buildId,
+  shareUrl,
   buildNumber,
   version,
   feature,
@@ -137,8 +135,8 @@ export async function postBuildComment({
   repo: string;
   issueNumber: number;
   appName: string;
-  appSlug: string;
-  buildId: string;
+  /** Public /share/[token] link — this is what gets embedded, never the authed build page. */
+  shareUrl: string;
   buildNumber: string;
   version: string;
   feature: string;
@@ -146,7 +144,6 @@ export async function postBuildComment({
   apkSizeBytes: number;
 }): Promise<void> {
   const sizeMb = (apkSizeBytes / 1024 / 1024).toFixed(1);
-  const buildUrl = absoluteUrl(`/apps/${appSlug}/builds/${buildId}`);
 
   const body = [
     `### 🚀 Build Published — ${appName}`,
@@ -159,7 +156,7 @@ export async function postBuildComment({
     `| **Developer** | ${developerName} |`,
     `| **APK size** | ${sizeMb} MB |`,
     ``,
-    `[Download APK](${buildUrl})`,
+    `[Download APK](${shareUrl})`,
   ].join("\n");
 
   const res = await fetch(

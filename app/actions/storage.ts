@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requirePublisher } from "@/lib/dal";
+import { absoluteUrl } from "@/lib/url";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { presignS3Put, listS3Objects } from "@/lib/storage/s3";
 import { postBuildComment } from "@/lib/github";
@@ -267,10 +269,18 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
 
   // Post comment to all linked GitHub issues in the background — update commentStatus per ticket
   if (parsedTickets.length > 0) {
+    // The comment must link the public /share/[token] page, not the authed
+    // build page — Bisdev/reviewers on the ticket don't have BuildApp accounts.
+    const shareToken = randomBytes(18).toString("base64url");
+    await prisma.build.update({
+      where: { id: build.id },
+      data: { shareToken },
+    });
+    const shareUrl = absoluteUrl(`/share/${shareToken}`);
+
     const commentArgs = {
       appName: app.name,
-      appSlug: app.slug,
-      buildId: build.id,
+      shareUrl,
       buildNumber: build.number,
       version: data.version,
       feature: data.feature,
