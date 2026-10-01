@@ -3,9 +3,11 @@ import "server-only";
 const ORG = "GO-Bimbel";
 const BASE = "https://api.github.com";
 
-function headers() {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) throw new Error("GITHUB_TOKEN is not set");
+export const GITHUB_ORG = ORG;
+
+/** Every call runs as the signed-in publisher's own PAT (see lib/githubToken.ts),
+ *  so comments on issues show up under their GitHub account. */
+function headers(token: string) {
   return {
     Authorization: `Bearer ${token}`,
     Accept: "application/vnd.github+json",
@@ -27,14 +29,14 @@ export type GithubIssue = {
   repo: string;
 };
 
-export async function listOrgRepos(): Promise<GithubRepo[]> {
+export async function listOrgRepos(token: string): Promise<GithubRepo[]> {
   const repos: GithubRepo[] = [];
   let page = 1;
 
   while (true) {
     const res = await fetch(
       `${BASE}/orgs/${ORG}/repos?type=all&sort=pushed&per_page=100&page=${page}`,
-      { headers: headers(), next: { revalidate: 300 } }
+      { headers: headers(token), next: { revalidate: 300 } }
     );
     if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
     const data = (await res.json()) as Array<{
@@ -57,6 +59,7 @@ export async function listOrgRepos(): Promise<GithubRepo[]> {
 }
 
 export async function searchIssues(
+  token: string,
   repo: string,
   query: string
 ): Promise<GithubIssue[]> {
@@ -66,7 +69,7 @@ export async function searchIssues(
   if (isNumber) {
     const res = await fetch(
       `${BASE}/repos/${ORG}/${repo}/issues/${trimmed}`,
-      { headers: headers(), next: { revalidate: 0 } }
+      { headers: headers(token), next: { revalidate: 0 } }
     );
     if (res.status === 404) return [];
     if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
@@ -97,7 +100,7 @@ export async function searchIssues(
   );
   const res = await fetch(
     `${BASE}/search/issues?q=${q}&per_page=10&sort=updated`,
-    { headers: headers(), next: { revalidate: 0 } }
+    { headers: headers(token), next: { revalidate: 0 } }
   );
   if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
   const data = (await res.json()) as {
@@ -122,6 +125,7 @@ export async function searchIssues(
 }
 
 export async function postBuildComment({
+  token,
   repo,
   issueNumber,
   appName,
@@ -132,6 +136,7 @@ export async function postBuildComment({
   developerName,
   apkSizeBytes,
 }: {
+  token: string;
   repo: string;
   issueNumber: number;
   appName: string;
@@ -163,7 +168,7 @@ export async function postBuildComment({
     `${BASE}/repos/${ORG}/${repo}/issues/${issueNumber}/comments`,
     {
       method: "POST",
-      headers: { ...headers(), "Content-Type": "application/json" },
+      headers: { ...headers(token), "Content-Type": "application/json" },
       body: JSON.stringify({ body }),
     }
   );
@@ -172,4 +177,119 @@ export async function postBuildComment({
     const text = await res.text();
     throw new Error(`Failed to post comment to ${repo}#${issueNumber}: ${res.status} ${text}`);
   }
+}
+
+export type TokenCheck =
+  | { ok: true; login: string }
+  | { ok: false; message: string };
+
+/** Confirms the token authenticates and returns the account it belongs to. */
+export async function getTokenOwner(token: string): Promise<TokenCheck> {
+  const res = await fetch(`${BASE}/user`, {
+    headers: headers(token),
+    cache: "no-store",
+  });
+  if (res.status === 401) {
+    return { ok: false, message: "GitHub rejected this token (bad credentials or expired)." };
+  }
+  if (!res.ok) return { ok: false, message: `GitHub API error: ${res.status}` };
+  const data = (await res.json()) as { login: string };
+  return { ok: true, login: data.login };
+}
+
+export type CommentPermissionCheck =
+  | { ok: true; login: string; repo: string; issueNumber: number; issueTitle: string; issueUrl: string }
+  | { ok: false; message: string };
+
+/**
+ * Checks the token can comment on an issue *without posting anything*: it
+ * sends the create-comment request with no body. GitHub authorizes before it
+ * validates, so a 422 ("body wasn't supplied") means the comment would have
+ * gone through, while 401/403/404 mean it would not.
+ *
+ * With no issue given, it tries the most recently updated issue in the org
+ * that the token can see.
+ */
+export async function testCommentPermission(
+  token: string,
+  target?: { repo: string; issueNumber: number }
+): Promise<CommentPermissionCheck> {
+  const owner = await getTokenOwner(token);
+  if (!owner.ok) return owner;
+
+  let repo: string;
+  let issueNumber: number;
+  let issueTitle: string;
+
+  if (target) {
+    const res = await fetch(`${BASE}/repos/${ORG}/${target.repo}/issues/${target.issueNumber}`, {
+      headers: headers(token),
+      cache: "no-store",
+    });
+    if (res.status === 403 && res.headers.get("x-github-sso")) return ssoRequired();
+    if (res.status === 404 || res.status === 403) {
+      return {
+        ok: false,
+        message: `Issue ${target.repo}#${target.issueNumber} not found, or this token has no access to the ${target.repo} repo.`,
+      };
+    }
+    if (!res.ok) return { ok: false, message: `GitHub API error: ${res.status}` };
+    const data = (await res.json()) as { title: string };
+    ({ repo, issueNumber } = target);
+    issueTitle = data.title;
+  } else {
+    const q = encodeURIComponent(`org:${ORG} is:issue`);
+    const res = await fetch(`${BASE}/search/issues?q=${q}&per_page=1&sort=updated`, {
+      headers: headers(token),
+      cache: "no-store",
+    });
+    if (res.status === 403 && res.headers.get("x-github-sso")) return ssoRequired();
+    if (!res.ok) return { ok: false, message: `GitHub API error: ${res.status}` };
+    const data = (await res.json()) as {
+      items: Array<{ number: number; title: string; repository_url: string }>;
+    };
+    const issue = data.items[0];
+    if (!issue) {
+      return {
+        ok: false,
+        message: `This token can't see any issues in ${ORG}. Make sure the token's resource owner is ${ORG} and it has access to the repositories.`,
+      };
+    }
+    repo = issue.repository_url.split("/").pop()!;
+    issueNumber = issue.number;
+    issueTitle = issue.title;
+  }
+
+  const res = await fetch(`${BASE}/repos/${ORG}/${repo}/issues/${issueNumber}/comments`, {
+    method: "POST",
+    headers: { ...headers(token), "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+    cache: "no-store",
+  });
+
+  if (res.status === 422) {
+    return {
+      ok: true,
+      login: owner.login,
+      repo,
+      issueNumber,
+      issueTitle,
+      issueUrl: `https://github.com/${ORG}/${repo}/issues/${issueNumber}`,
+    };
+  }
+  if (res.status === 403 && res.headers.get("x-github-sso")) return ssoRequired();
+  if (res.status === 403 || res.status === 404) {
+    return {
+      ok: false,
+      message: `The token can read ${repo}#${issueNumber} but can't comment on it. Give it the "Issues: Read and write" permission (fine-grained) or the "repo" scope (classic).`,
+    };
+  }
+  return { ok: false, message: `Unexpected GitHub response: ${res.status}` };
+}
+
+function ssoRequired(): CommentPermissionCheck {
+  return {
+    ok: false,
+    message: `${ORG} uses SAML SSO. On github.com/settings/tokens, click "Configure SSO" next to this token and authorize it for ${ORG}.`,
+  };
 }

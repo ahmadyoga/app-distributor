@@ -10,6 +10,7 @@ import { absoluteUrl } from "@/lib/url";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { presignS3Put, listS3Objects } from "@/lib/storage/s3";
 import { postBuildComment } from "@/lib/github";
+import { getGithubToken, NO_GITHUB_TOKEN_MESSAGE } from "@/lib/githubToken";
 import { removeStoredObject } from "@/lib/storage/removeObject";
 import {
   createResumableUploadSession,
@@ -208,6 +209,12 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
 
   const data = validated.data;
 
+  // Comments go out under the uploader's own GitHub account, never a shared one.
+  const githubToken = parsedTickets.length > 0 ? await getGithubToken(user.id) : null;
+  if (parsedTickets.length > 0 && !githubToken) {
+    return { ok: false, message: NO_GITHUB_TOKEN_MESSAGE };
+  }
+
   const app = await prisma.application.findUnique({ where: { id: data.applicationId } });
   if (!app) return { ok: false, message: "Application not found." };
 
@@ -268,7 +275,7 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
   });
 
   // Post comment to all linked GitHub issues in the background — update commentStatus per ticket
-  if (parsedTickets.length > 0) {
+  if (githubToken) {
     // The comment must link the public /share/[token] page, not the authed
     // build page — Bisdev/reviewers on the ticket don't have BuildApp accounts.
     const shareToken = randomBytes(18).toString("base64url");
@@ -279,6 +286,7 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
     const shareUrl = absoluteUrl(`/share/${shareToken}`);
 
     const commentArgs = {
+      token: githubToken,
       appName: app.name,
       shareUrl,
       buildNumber: build.number,

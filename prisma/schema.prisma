@@ -35,6 +35,12 @@ model User {
   role         Role     @default(PUBLISHER)
   createdAt    DateTime @default(now())
 
+  // Each publisher's own GitHub PAT, so build comments on issues are posted
+  // under their name. AES-256-GCM encrypted (lib/crypto.ts), never plaintext.
+  githubTokenEncrypted String?
+  githubLogin          String?
+  githubTokenSetAt     DateTime?
+
   builds Build[]
 }
 

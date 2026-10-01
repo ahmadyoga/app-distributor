@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { getNewBuildContext } from "@/lib/queries";
 import { getCurrentUser } from "@/lib/dal";
 import { CreateBuildForm } from "@/components/CreateBuildForm";
+import { BannerWarn } from "@/components/ui/Misc";
+import { LinkButton } from "@/components/ui/Button";
 import styles from "../application.module.css";
 
 export default async function NewBuildPage({
@@ -36,15 +38,28 @@ export default async function NewBuildPage({
         Then say which environment it targets and what feature it carries.
       </p>
 
-      <CreateBuildForm
-        applicationId={app.id}
-        storageName={app.defaultStorage?.name ?? null}
-        storageProvider={provider}
-        suggestedVersion={latest?.version ?? ""}
-        suggestedNumber={suggestedNumber}
-        lastNumber={latest?.number ?? null}
-        existingNumbers={existingNumbers}
-      />
+      {!user.githubLogin ? (
+        <div style={{ maxWidth: "62ch" }}>
+          <BannerWarn>
+            <strong>Set up your GitHub token first.</strong> Build comments on linked
+            issues are posted under each uploader&apos;s own GitHub account, so every
+            account needs its own personal access token before uploading.
+          </BannerWarn>
+          <LinkButton href="/settings" variant="primary" size="md">
+            Set up GitHub token
+          </LinkButton>
+        </div>
+      ) : (
+        <CreateBuildForm
+          applicationId={app.id}
+          storageName={app.defaultStorage?.name ?? null}
+          storageProvider={provider}
+          suggestedVersion={latest?.version ?? ""}
+          suggestedNumber={suggestedNumber}
+          lastNumber={latest?.number ?? null}
+          existingNumbers={existingNumbers}
+        />
+      )}
     </div>
   );
 }

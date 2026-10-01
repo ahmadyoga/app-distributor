@@ -4,7 +4,7 @@ import { Logo } from "@/components/ui/Misc";
 import { DevAvatar } from "@/components/ui/Tile";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { NavLink } from "@/components/ui/NavLink";
-import { GridIcon, AppsIcon, StorageIcon } from "@/components/ui/icons";
+import { GridIcon, AppsIcon, StorageIcon, KeyIcon } from "@/components/ui/icons";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { NavProgress } from "@/components/NavProgress";
 import styles from "./shell.module.css";
@@ -53,6 +53,9 @@ export default async function AppLayout({
           </NavLink>
           <NavLink href="/storage" icon={<StorageIcon />}>
             Storage
+          </NavLink>
+          <NavLink href="/settings" icon={<KeyIcon />}>
+            GitHub token
           </NavLink>
         </nav>
 

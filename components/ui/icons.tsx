@@ -113,6 +113,26 @@ export function StorageIcon({ size = 16 }: IconProps) {
   );
 }
 
+export function KeyIcon({ size = 16 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="8" cy="15" r="4" />
+      <path d="m10.85 12.15 8.65-8.65" />
+      <path d="m18 5 2 2" />
+      <path d="m15 8 2 2" />
+    </svg>
+  );
+}
+
 export function DownloadIcon({ size = 16 }: IconProps) {
   return (
     <svg

@@ -23,7 +23,7 @@ export const getCurrentUser = cache(async () => {
   const session = await verifySession();
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, githubLogin: true, githubTokenSetAt: true },
   });
   // Valid cookie, but the user is gone: clear it rather than loop via /login.
   if (!user) redirect("/api/auth/expired");
