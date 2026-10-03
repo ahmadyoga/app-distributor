@@ -31,6 +31,27 @@ export async function GET(req: Request) {
     () => "Google Drive"
   );
 
+  const encryptedCredentials = encryptSecret(
+    JSON.stringify({ refreshToken: tokens.refresh_token })
+  );
+
+  // Connecting an account that is already connected refreshes its token in
+  // place, so builds stored on it keep working once the old token is revoked
+  // or expires. A new row would leave those builds on the dead token.
+  const existing = await prisma.storageConnection.findFirst({
+    where: { provider: "GOOGLE_DRIVE", accountLabel: email },
+    select: { id: true },
+  });
+  if (existing) {
+    await prisma.storageConnection.update({
+      where: { id: existing.id },
+      data: { encryptedCredentials },
+    });
+    const res = NextResponse.redirect(new URL("/storage", req.url));
+    res.cookies.delete("gdrive_oauth_state");
+    return res;
+  }
+
   const existingCount = await prisma.storageConnection.count();
 
   await prisma.storageConnection.create({
@@ -39,9 +60,7 @@ export async function GET(req: Request) {
       provider: "GOOGLE_DRIVE",
       accountLabel: email,
       isDefault: existingCount === 0,
-      encryptedCredentials: encryptSecret(
-        JSON.stringify({ refreshToken: tokens.refresh_token })
-      ),
+      encryptedCredentials,
     },
   });
 
