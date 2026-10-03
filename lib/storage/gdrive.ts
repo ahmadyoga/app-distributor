@@ -52,6 +52,14 @@ export async function exchangeCodeForTokens(code: string) {
   return res.json() as Promise<{ access_token: string; refresh_token: string }>;
 }
 
+/** Google no longer accepts the stored refresh token — the account must be reconnected. */
+export class DriveAccessRevokedError extends Error {
+  constructor() {
+    super("Google Drive access has expired or was revoked.");
+    this.name = "DriveAccessRevokedError";
+  }
+}
+
 async function getAccessToken(refreshToken: string): Promise<string> {
   const cfg = oauthConfig();
   if (!cfg) throw new Error("Google Drive OAuth is not configured");
@@ -65,7 +73,14 @@ async function getAccessToken(refreshToken: string): Promise<string> {
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`Failed to refresh access token: ${res.status}`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; error_description?: string };
+    // invalid_grant: expired (e.g. issued while the OAuth app was in Testing), revoked, or password changed.
+    if (body.error === "invalid_grant") throw new DriveAccessRevokedError();
+    throw new Error(
+      `Failed to refresh access token: ${res.status} ${body.error ?? ""} ${body.error_description ?? ""}`.trim()
+    );
+  }
   const data = await res.json() as { access_token: string };
   return data.access_token;
 }

@@ -28,7 +28,9 @@ export function CleanupStorageDialog({
     setLoading(true);
     setError(null);
     try {
-      setFiles(await findUnlinkedFiles(storageConnectionId));
+      const res = await findUnlinkedFiles(storageConnectionId);
+      if (res.ok) setFiles(res.files);
+      else setError(res.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to scan storage.");
     } finally {
@@ -40,7 +42,11 @@ export function CleanupStorageDialog({
     setDeletingKey(key);
     setError(null);
     try {
-      await deleteUnlinkedFile(storageConnectionId, key);
+      const res = await deleteUnlinkedFile(storageConnectionId, key);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
       setFiles((prev) => prev?.filter((f) => f.key !== key) ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete file.");

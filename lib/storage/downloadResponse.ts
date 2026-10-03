@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { Build, StorageConnection } from "@prisma/client";
 import { decryptSecret } from "@/lib/crypto";
 import { presignS3Get, type S3Credentials } from "@/lib/storage/s3";
-import { fetchDriveFileStream } from "@/lib/storage/gdrive";
+import { fetchDriveFileStream, DriveAccessRevokedError } from "@/lib/storage/gdrive";
 import { attachmentDisposition } from "@/lib/format";
 
 /** Cookie the DownloadButton polls for to learn the file has started arriving. */
@@ -13,6 +13,20 @@ const DOWNLOAD_ID_RE = /^[a-z0-9]{8,32}$/i;
 type DownloadableBuild = Pick<Build, "storageObjectKey" | "apkFileName"> & {
   storageConnection: StorageConnection | null;
 };
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** Browsers navigate to the download, so they get a readable page; API clients (mobile) get JSON. */
+function unavailable(req: Request, status: number, title: string, detail: string) {
+  if (!req.headers.get("accept")?.includes("text/html")) {
+    return NextResponse.json({ error: `${title}. ${detail}` }, { status });
+  }
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title>
+<style>body{font:15px/1.6 system-ui,sans-serif;margin:0;padding:48px 16px;background:#fafafa;color:#1a1a1a}main{max-width:460px;margin:0 auto}h1{font-size:19px;margin:0 0 8px}p{margin:0 0 16px;color:#555}a{color:inherit}@media (prefers-color-scheme:dark){body{background:#141414;color:#eee}p{color:#aaa}}</style></head>
+<body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(detail)}</p><p><a href="javascript:history.back()">← Go back</a></p></main></body></html>`;
+  return new NextResponse(html, { status, headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
 
 /**
  * Responds with the build's APK — a redirect to a presigned URL for S3, a
@@ -34,7 +48,25 @@ export async function downloadResponse(req: Request, build: DownloadableBuild) {
     res = NextResponse.redirect(url);
   } else {
     const { refreshToken } = JSON.parse(secret) as { refreshToken: string };
-    const upstream = await fetchDriveFileStream(refreshToken, build.storageObjectKey);
+    let upstream: Response;
+    try {
+      upstream = await fetchDriveFileStream(refreshToken, build.storageObjectKey);
+    } catch (err) {
+      console.error("download: Drive fetch failed", err);
+      return err instanceof DriveAccessRevokedError
+        ? unavailable(
+            req,
+            503,
+            "Download temporarily unavailable",
+            `The Google Drive account that stores this APK (${connection.accountLabel}) needs to be reconnected in BuildApp. Let the team know — this link will work again once it's reconnected.`
+          )
+        : unavailable(
+            req,
+            502,
+            "Couldn't fetch the APK",
+            "Google Drive didn't return the file. Try again in a minute; if it keeps failing, let the team know."
+          );
+    }
     const headers = new Headers({
       "Content-Type":
         upstream.headers.get("content-type") ?? "application/vnd.android.package-archive",

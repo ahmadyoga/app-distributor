@@ -39,11 +39,13 @@ export async function uploadApk(
 
   if (provider === "S3_COMPATIBLE") {
     const presigned = await presignS3Upload(applicationId, file.name, contentType);
+    if (!presigned.ok) throw new Error(presigned.message);
     await xhrPut(presigned.uploadUrl, file, contentType, callbacks.onProgress);
-    return { storageConnectionId: presigned.storageConnectionId, storageObjectKey: presigned.objectKey };
+    return { storageConnectionId: presigned.storageConnectionId, storageObjectKey: presigned.objectKey! };
   }
 
   const session = await createGDriveUploadSession(applicationId, file.name, contentType);
+  if (!session.ok) throw new Error(session.message);
   // Chunked + resumable: a dropped connection resumes instead of restarting.
   const storageObjectKey = await uploadToDriveSession(session.uploadUrl, file, contentType, callbacks);
   callbacks.onRetry(null);

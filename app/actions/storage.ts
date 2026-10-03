@@ -12,6 +12,7 @@ import { presignS3Put, listS3Objects } from "@/lib/storage/s3";
 import { postBuildComment, postApkUpdatedComment } from "@/lib/github";
 import { getGithubToken, NO_GITHUB_TOKEN_MESSAGE } from "@/lib/githubToken";
 import { removeStoredObject } from "@/lib/storage/removeObject";
+import { storageErrorMessage } from "@/lib/storage/errors";
 import {
   createResumableUploadSession,
   listDistributionFolderFiles,
@@ -126,45 +127,56 @@ async function resolveConnectionForApplication(applicationId: string) {
   return connection;
 }
 
+export type UploadTarget =
+  | { ok: true; uploadUrl: string; objectKey?: string; storageConnectionId: string }
+  | { ok: false; message: string };
+
 export async function presignS3Upload(
   applicationId: string,
   filename: string,
   contentType: string
-) {
+): Promise<UploadTarget> {
   await requirePublisher();
   const app = await prisma.application.findUnique({ where: { id: applicationId } });
-  if (!app) throw new Error("Application not found");
+  if (!app) return { ok: false, message: "Application not found." };
 
-  const connection = await resolveConnectionForApplication(applicationId);
-  if (connection.provider !== "S3_COMPATIBLE") {
-    throw new Error("The connected storage for this application is not S3-compatible");
+  let connection;
+  try {
+    connection = await resolveConnectionForApplication(applicationId);
+    if (connection.provider !== "S3_COMPATIBLE") {
+      return { ok: false, message: "The connected storage for this application is not S3-compatible." };
+    }
+    const creds = JSON.parse(decryptSecret(connection.encryptedCredentials)) as S3Credentials;
+    const objectKey = `${app.slug}/${Date.now()}-${filename}`;
+    const uploadUrl = await presignS3Put(creds, objectKey, contentType);
+    return { ok: true, uploadUrl, objectKey, storageConnectionId: connection.id };
+  } catch (err) {
+    console.error("presignS3Upload failed", err);
+    return { ok: false, message: storageErrorMessage(err, connection) };
   }
-
-  const creds = JSON.parse(decryptSecret(connection.encryptedCredentials)) as S3Credentials;
-  const objectKey = `${app.slug}/${Date.now()}-${filename}`;
-  const uploadUrl = await presignS3Put(creds, objectKey, contentType);
-
-  return { uploadUrl, objectKey, storageConnectionId: connection.id };
 }
 
 export async function createGDriveUploadSession(
   applicationId: string,
   filename: string,
   mimeType: string
-) {
+): Promise<UploadTarget> {
   await requirePublisher();
-  const connection = await resolveConnectionForApplication(applicationId);
-  if (connection.provider !== "GOOGLE_DRIVE") {
-    throw new Error("The connected storage for this application is not Google Drive");
+  let connection;
+  try {
+    connection = await resolveConnectionForApplication(applicationId);
+    if (connection.provider !== "GOOGLE_DRIVE") {
+      return { ok: false, message: "The connected storage for this application is not Google Drive." };
+    }
+    const { refreshToken } = JSON.parse(
+      decryptSecret(connection.encryptedCredentials)
+    ) as { refreshToken: string };
+    const uploadUrl = await createResumableUploadSession(refreshToken, filename, mimeType);
+    return { ok: true, uploadUrl, storageConnectionId: connection.id };
+  } catch (err) {
+    console.error("createGDriveUploadSession failed", err);
+    return { ok: false, message: storageErrorMessage(err, connection) };
   }
-
-  const { refreshToken } = JSON.parse(
-    decryptSecret(connection.encryptedCredentials)
-  ) as { refreshToken: string };
-
-  const uploadUrl = await createResumableUploadSession(refreshToken, filename, mimeType);
-
-  return { uploadUrl, storageConnectionId: connection.id };
 }
 
 export type FinalizeBuildResult =
@@ -576,11 +588,46 @@ export type UnlinkedFile = {
 /** Lists files sitting in a connection's storage that no Build references —
  *  leftovers from uploads that failed, or were abandoned, after the file
  *  landed in storage but before the build record was created. */
+export type StorageResult<T = object> = ({ ok: true } & T) | { ok: false; message: string };
+
+/** Returned rather than thrown, so the real reason reaches the UI in production. */
+async function asStorageResult<T extends object>(
+  storageConnectionId: string,
+  run: () => Promise<T>
+): Promise<StorageResult<T>> {
+  try {
+    return { ok: true, ...(await run()) };
+  } catch (err) {
+    console.error(`storage action failed for connection ${storageConnectionId}`, err);
+    const connection = await prisma.storageConnection.findUnique({
+      where: { id: storageConnectionId },
+      select: { accountLabel: true },
+    });
+    return { ok: false, message: storageErrorMessage(err, connection) };
+  }
+}
+
 export async function findUnlinkedFiles(
   storageConnectionId: string
-): Promise<UnlinkedFile[]> {
+): Promise<StorageResult<{ files: UnlinkedFile[] }>> {
   await requirePublisher();
+  return asStorageResult(storageConnectionId, async () => ({
+    files: await scanUnlinkedFiles(storageConnectionId),
+  }));
+}
 
+export async function deleteUnlinkedFile(
+  storageConnectionId: string,
+  fileKey: string
+): Promise<StorageResult> {
+  await requirePublisher();
+  return asStorageResult(storageConnectionId, async () => {
+    await removeUnlinkedFile(storageConnectionId, fileKey);
+    return {};
+  });
+}
+
+async function scanUnlinkedFiles(storageConnectionId: string): Promise<UnlinkedFile[]> {
   const connection = await prisma.storageConnection.findUnique({
     where: { id: storageConnectionId },
   });
@@ -628,12 +675,7 @@ export async function findUnlinkedFiles(
     }));
 }
 
-export async function deleteUnlinkedFile(
-  storageConnectionId: string,
-  fileKey: string
-) {
-  await requirePublisher();
-
+async function removeUnlinkedFile(storageConnectionId: string, fileKey: string) {
   const connection = await prisma.storageConnection.findUnique({
     where: { id: storageConnectionId },
   });
