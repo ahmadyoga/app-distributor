@@ -13,6 +13,7 @@ import { DeleteBuildButton } from "@/components/DeleteBuildButton";
 import { SharePanel } from "@/components/SharePanel";
 import { TicketCommentStatus } from "@/components/TicketCommentStatus";
 import { ReplaceApkPanel } from "@/components/ReplaceApkPanel";
+import { AddTicketsPanel } from "@/components/AddTicketsPanel";
 import { formatBytes } from "@/lib/format";
 
 export default async function BuildPage({
@@ -24,8 +25,8 @@ export default async function BuildPage({
 
   const { app, build, siblings } = data;
   const canManage = user.role === "PUBLISHER";
-  // Replacing the APK is reserved for whoever published the build.
-  const canReplace = canManage && build.developerId === user.id;
+  // Replacing the APK and linking issues are reserved for whoever published the build.
+  const isUploader = canManage && build.developerId === user.id;
   const lastUpdate = build.updates[0] ?? null;
   const fmtDate = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -102,6 +103,12 @@ export default async function BuildPage({
             ) : (
               <p style={{ fontSize: 13, color: "var(--muted)" }}>No tickets linked</p>
             )}
+            {isUploader && (
+              <AddTicketsPanel
+                buildId={build.id}
+                linkedKeys={build.tickets.map((t) => `${t.repo}#${t.number}`)}
+              />
+            )}
           </div>
 
           {build.updates.length > 0 && (
@@ -175,7 +182,7 @@ export default async function BuildPage({
               </div>
             )}
 
-            {canReplace && (
+            {isUploader && (
               <div style={{ marginTop: 14 }}>
                 <ReplaceApkPanel
                   buildId={build.id}

@@ -466,6 +466,104 @@ export async function replaceBuildApk(formData: FormData): Promise<ReplaceApkRes
   return { ok: true, comments };
 }
 
+export type AddTicketsResult =
+  | { ok: true; added: number; posted: number; failed: string[] }
+  | { ok: false; message: string };
+
+/**
+ * Links more GitHub issues to an existing build and posts the usual build
+ * comment on each newly linked one. Only the build's developer may do this.
+ */
+export async function addBuildTickets(
+  buildId: string,
+  tickets: Array<{ repo: string; number: number; title: string; htmlUrl: string }>
+): Promise<AddTicketsResult> {
+  const user = await requirePublisher();
+
+  const parsed = TicketRefSchema.array().min(1).safeParse(tickets);
+  if (!parsed.success) return { ok: false, message: "Pick at least one issue." };
+
+  const build = await prisma.build.findUnique({
+    where: { id: buildId },
+    include: {
+      application: { select: { slug: true, name: true } },
+      tickets: { select: { repo: true, number: true } },
+    },
+  });
+  if (!build) return { ok: false, message: "Build not found." };
+  if (build.developerId !== user.id) {
+    return { ok: false, message: "Only the developer who uploaded this build can link issues to it." };
+  }
+
+  const linked = new Set(build.tickets.map((t) => `${t.repo}#${t.number}`));
+  const fresh = parsed.data.filter((t) => !linked.has(`${t.repo}#${t.number}`));
+  if (fresh.length === 0) return { ok: false, message: "Those issues are already linked." };
+
+  const githubToken = await getGithubToken(user.id);
+  if (!githubToken) return { ok: false, message: NO_GITHUB_TOKEN_MESSAGE };
+
+  // The comment links the public share page. Builds published without issues
+  // may not have one yet.
+  let shareToken = build.shareToken;
+  if (!shareToken) {
+    shareToken = randomBytes(18).toString("base64url");
+    await prisma.build.update({ where: { id: build.id }, data: { shareToken } });
+  }
+  const shareUrl = absoluteUrl(`/share/${shareToken}`);
+
+  await prisma.buildTicket.createMany({
+    data: fresh.map((t) => ({
+      buildId: build.id,
+      repo: t.repo,
+      number: t.number,
+      title: t.title,
+      htmlUrl: t.htmlUrl,
+    })),
+    skipDuplicates: true,
+  });
+
+  // Awaited and settled here: the comment-status poller times PENDING tickets
+  // out against the build's createdAt, which on an old build is long past.
+  const commentArgs = {
+    token: githubToken,
+    appName: build.application.name,
+    shareUrl,
+    buildNumber: build.number,
+    version: build.version,
+    feature: build.feature,
+    developerName: user.name,
+    apkSizeBytes: Number(build.apkSizeBytes ?? 0),
+  };
+  const results = await Promise.allSettled(
+    fresh.map((t) => postBuildComment({ repo: t.repo, issueNumber: t.number, ...commentArgs }))
+  );
+  await Promise.all(
+    fresh.map((t, i) => {
+      const r = results[i];
+      return prisma.buildTicket.update({
+        where: { buildId_repo_number: { buildId: build.id, repo: t.repo, number: t.number } },
+        data:
+          r.status === "fulfilled"
+            ? { commentStatus: "POSTED", commentError: null }
+            : {
+                commentStatus: "FAILED",
+                commentError: r.reason instanceof Error ? r.reason.message : "Unknown error",
+              },
+      });
+    })
+  );
+
+  revalidatePath(`/apps/${build.application.slug}`);
+  revalidatePath(`/apps/${build.application.slug}/builds/${build.id}`);
+  revalidatePath(`/share/${shareToken}`);
+  return {
+    ok: true,
+    added: fresh.length,
+    posted: results.filter((r) => r.status === "fulfilled").length,
+    failed: fresh.filter((_, i) => results[i].status === "rejected").map((t) => `${t.repo}#${t.number}`),
+  };
+}
+
 export type UnlinkedFile = {
   key: string;
   name: string;
