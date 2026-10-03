@@ -9,7 +9,7 @@ import { requirePublisher } from "@/lib/dal";
 import { absoluteUrl } from "@/lib/url";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { presignS3Put, listS3Objects } from "@/lib/storage/s3";
-import { postBuildComment } from "@/lib/github";
+import { postBuildComment, postApkUpdatedComment } from "@/lib/github";
 import { getGithubToken, NO_GITHUB_TOKEN_MESSAGE } from "@/lib/githubToken";
 import { removeStoredObject } from "@/lib/storage/removeObject";
 import {
@@ -19,6 +19,7 @@ import {
 import {
   S3ConnectionSchema,
   BuildFormSchema,
+  ReplaceApkSchema,
   TicketRefSchema,
   type FormState,
 } from "@/app/lib/definitions";
@@ -324,6 +325,145 @@ export async function finalizeBuild(formData: FormData): Promise<FinalizeBuildRe
   revalidatePath(`/apps/${app.slug}`);
   revalidatePath("/");
   return { ok: true, appSlug: app.slug, id: build.id };
+}
+
+export type ReplaceApkResult =
+  | {
+      ok: true;
+      /** Outcome of the "APK updated" comments on linked issues; null when none were sent. */
+      comments: { posted: number; failed: string[]; skipped?: string } | null;
+    }
+  | { ok: false; message: string };
+
+/**
+ * Swaps the APK behind an existing build. The build keeps its id, number and
+ * share token, so every link already handed out serves the new file. Only the
+ * developer who published the build may do this.
+ */
+export async function replaceBuildApk(formData: FormData): Promise<ReplaceApkResult> {
+  const user = await requirePublisher();
+
+  const validated = ReplaceApkSchema.safeParse({
+    buildId: formData.get("buildId"),
+    note: formData.get("note") || undefined,
+    storageConnectionId: formData.get("storageConnectionId"),
+    storageObjectKey: formData.get("storageObjectKey"),
+    apkFileName: formData.get("apkFileName"),
+    apkSizeBytes: formData.get("apkSizeBytes"),
+    hasInspector: formData.get("hasInspector"),
+  });
+  const notifyIssues = formData.get("notifyIssues") === "true";
+  if (!validated.success) {
+    const first = Object.values(validated.error.flatten().fieldErrors).flat()[0];
+    return { ok: false, message: first ?? "Invalid replace request." };
+  }
+  const data = validated.data;
+
+  const build = await prisma.build.findUnique({
+    where: { id: data.buildId },
+    include: {
+      application: { select: { slug: true, name: true } },
+      storageConnection: true,
+      tickets: { select: { repo: true, number: true } },
+    },
+  });
+  if (!build) return { ok: false, message: "Build not found." };
+  if (build.developerId !== user.id) {
+    return { ok: false, message: "Only the developer who uploaded this build can replace its APK." };
+  }
+
+  const newSize = BigInt(data.apkSizeBytes);
+  await prisma.$transaction(async (tx) => {
+    await tx.build.update({
+      where: { id: build.id },
+      data: {
+        storageConnectionId: data.storageConnectionId,
+        storageObjectKey: data.storageObjectKey,
+        apkFileName: data.apkFileName,
+        apkSizeBytes: newSize,
+        hasInspector: data.hasInspector,
+        status: "PUBLISHED",
+      },
+    });
+    await tx.buildUpdate.create({
+      data: {
+        buildId: build.id,
+        note: data.note || null,
+        apkFileName: data.apkFileName,
+        apkSizeBytes: newSize,
+        previousApkFileName: build.apkFileName,
+        uploadedById: user.id,
+      },
+    });
+    if (build.storageConnectionId && build.apkSizeBytes) {
+      await tx.storageConnection.update({
+        where: { id: build.storageConnectionId },
+        data: { usedBytesApprox: { decrement: build.apkSizeBytes } },
+      });
+      // The counter is approximate — never let it go negative.
+      await tx.storageConnection.updateMany({
+        where: { id: build.storageConnectionId, usedBytesApprox: { lt: 0 } },
+        data: { usedBytesApprox: 0 },
+      });
+    }
+    await tx.storageConnection.update({
+      where: { id: data.storageConnectionId },
+      data: { usedBytesApprox: { increment: newSize } },
+    });
+  });
+
+  // Row first, old file second: if removal fails the old APK is merely
+  // unlinked and shows up in Storage → Clean up.
+  if (build.storageConnection && build.storageObjectKey && build.storageObjectKey !== data.storageObjectKey) {
+    try {
+      await removeStoredObject(build.storageConnection, build.storageObjectKey);
+    } catch (err) {
+      console.error(`replaceBuildApk: could not remove old APK for ${build.id}`, err);
+    }
+  }
+
+  // Awaited (unlike on publish) so the uploader sees right away which issues
+  // were told about the new APK. A failed comment never undoes the replace.
+  let comments: { posted: number; failed: string[]; skipped?: string } | null = null;
+  if (notifyIssues && build.tickets.length > 0) {
+    const githubToken = await getGithubToken(user.id);
+    if (!githubToken) {
+      comments = { posted: 0, failed: [], skipped: NO_GITHUB_TOKEN_MESSAGE };
+    } else {
+      const results = await Promise.allSettled(
+        build.tickets.map((t) =>
+          postApkUpdatedComment({
+            token: githubToken,
+            repo: t.repo,
+            issueNumber: t.number,
+            appName: build.application.name,
+            // A revoked share link stays revoked — the comment then has no link.
+            shareUrl: build.shareToken ? absoluteUrl(`/share/${build.shareToken}`) : null,
+            buildNumber: build.number,
+            version: build.version,
+            developerName: user.name,
+            apkSizeBytes: data.apkSizeBytes,
+            note: data.note || null,
+          })
+        )
+      );
+      comments = {
+        posted: results.filter((r) => r.status === "fulfilled").length,
+        failed: build.tickets
+          .filter((_, i) => results[i].status === "rejected")
+          .map((t) => `${t.repo}#${t.number}`),
+      };
+      results.forEach((r) => {
+        if (r.status === "rejected") console.error("replaceBuildApk: comment failed", r.reason);
+      });
+    }
+  }
+
+  revalidatePath(`/apps/${build.application.slug}`);
+  revalidatePath(`/apps/${build.application.slug}/builds/${build.id}`);
+  if (build.shareToken) revalidatePath(`/share/${build.shareToken}`);
+  revalidatePath("/storage");
+  return { ok: true, comments };
 }
 
 export type UnlinkedFile = {

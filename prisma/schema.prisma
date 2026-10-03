@@ -41,39 +41,40 @@ model User {
   githubLogin          String?
   githubTokenSetAt     DateTime?
 
-  builds Build[]
+  builds       Build[]
+  buildUpdates BuildUpdate[]
 }
 
 model Application {
-  id                   String   @id @default(cuid())
-  slug                 String   @unique
-  name                 String
-  platform             String   @default("Android, APK")
-  initials             String
-  defaultStorageId     String?
-  defaultStorage       StorageConnection? @relation(fields: [defaultStorageId], references: [id])
-  createdAt            DateTime @default(now())
+  id               String             @id @default(cuid())
+  slug             String             @unique
+  name             String
+  platform         String             @default("Android, APK")
+  initials         String
+  defaultStorageId String?
+  defaultStorage   StorageConnection? @relation(fields: [defaultStorageId], references: [id])
+  createdAt        DateTime           @default(now())
 
   builds Build[]
 }
 
 model StorageConnection {
-  id                    String          @id @default(cuid())
-  name                  String
-  provider              StorageProvider
-  accountLabel          String
-  isDefault             Boolean         @default(false)
-  encryptedCredentials  String
-  usedBytesApprox       BigInt          @default(0)
-  createdAt             DateTime        @default(now())
+  id                   String          @id @default(cuid())
+  name                 String
+  provider             StorageProvider
+  accountLabel         String
+  isDefault            Boolean         @default(false)
+  encryptedCredentials String
+  usedBytesApprox      BigInt          @default(0)
+  createdAt            DateTime        @default(now())
 
   applications Application[]
   builds       Build[]
 }
 
 model Build {
-  id           String      @id @default(cuid())
-  application  Application @relation(fields: [applicationId], references: [id])
+  id            String      @id @default(cuid())
+  application   Application @relation(fields: [applicationId], references: [id])
   applicationId String
 
   version      String
@@ -84,15 +85,15 @@ model Build {
   developer   User   @relation(fields: [developerId], references: [id])
   developerId String
 
-  status BuildStatus @default(PROCESSING)
-  hasInspector Boolean @default(false)
+  status       BuildStatus @default(PROCESSING)
+  hasInspector Boolean     @default(false)
   environment  Environment @default(PRODUCTION)
 
   storageConnection   StorageConnection? @relation(fields: [storageConnectionId], references: [id])
   storageConnectionId String?
-  storageObjectKey     String?
-  apkFileName          String?
-  apkSizeBytes         BigInt?
+  storageObjectKey    String?
+  apkFileName         String?
+  apkSizeBytes        BigInt?
 
   // Opaque, unguessable token for the public /share/[token] page — separate
   // from the app slug + build number so a public link never lets someone
@@ -102,6 +103,7 @@ model Build {
   createdAt DateTime @default(now())
 
   tickets BuildTicket[]
+  updates BuildUpdate[]
 
   // A build number identifies one APK within an app (PRD 7.4).
   @@unique([applicationId, number])
@@ -119,14 +121,14 @@ enum CommentStatus {
 }
 
 model BuildTicket {
-  id        String @id @default(cuid())
-  build     Build  @relation(fields: [buildId], references: [id], onDelete: Cascade)
-  buildId   String
+  id      String @id @default(cuid())
+  build   Build  @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  buildId String
 
-  repo      String
-  number    Int
-  title     String
-  htmlUrl   String
+  repo    String
+  number  Int
+  title   String
+  htmlUrl String
 
   commentStatus CommentStatus @default(PENDING)
   commentError  String?
@@ -134,4 +136,26 @@ model BuildTicket {
   createdAt DateTime @default(now())
 
   @@unique([buildId, repo, number])
+}
+
+// One row per "Replace APK" on an existing build. The build keeps its id,
+// number and share token, so every existing download link now serves the
+// new file; this keeps the history of what changed and why.
+model BuildUpdate {
+  id      String @id @default(cuid())
+  build   Build  @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  buildId String
+
+  note String?
+
+  apkFileName         String
+  apkSizeBytes        BigInt
+  previousApkFileName String?
+
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+
+  createdAt DateTime @default(now())
+
+  @@index([buildId, createdAt])
 }

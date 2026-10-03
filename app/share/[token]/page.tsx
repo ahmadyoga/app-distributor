@@ -14,7 +14,11 @@ import styles from "./share.module.css";
 const getSharedBuild = cache(async (token: string) =>
   prisma.build.findUnique({
     where: { shareToken: token },
-    include: { application: true, developer: { select: { name: true } } },
+    include: {
+      application: true,
+      developer: { select: { name: true } },
+      updates: { orderBy: { createdAt: "desc" }, select: { id: true, note: true, createdAt: true } },
+    },
   })
 );
 
@@ -53,11 +57,10 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
     .split("\n")
     .map((n) => n.trim())
     .filter(Boolean);
-  const published = build.createdAt.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const published = fmtDate(build.createdAt);
+  const lastUpdate = build.updates[0] ?? null;
 
   return (
     <div className={styles.page}>
@@ -129,6 +132,32 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           </details>
         </section>
 
+        {build.updates.length > 0 && (
+          <section className={styles.section}>
+            <h2 className={styles.sectionLabel}>APK updates</h2>
+            {build.updates.map((u) => {
+              const lines = (u.note ?? "")
+                .split("\n")
+                .map((n) => n.trim())
+                .filter(Boolean);
+              return (
+                <div key={u.id} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>
+                    Updated {fmtDate(u.createdAt)}
+                  </div>
+                  {lines.length > 0 && (
+                    <ul className={styles.notes}>
+                      {lines.map((n, i) => (
+                        <li key={i}>{n}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        )}
+
         {notes.length > 0 && (
           <section className={styles.section}>
             <h2 className={styles.sectionLabel}>What&apos;s new</h2>
@@ -149,6 +178,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
               ["Build number", build.number],
               ["Environment", isStaging ? "Staging" : "Production"],
               ["Published", published],
+              ...(lastUpdate ? [["APK updated", fmtDate(lastUpdate.createdAt)]] : []),
               ["Published by", build.developer.name],
             ].map(([k, v]) => (
               <div key={k} className={styles.metaRow}>

@@ -12,6 +12,8 @@ import styles from "./build.module.css";
 import { DeleteBuildButton } from "@/components/DeleteBuildButton";
 import { SharePanel } from "@/components/SharePanel";
 import { TicketCommentStatus } from "@/components/TicketCommentStatus";
+import { ReplaceApkPanel } from "@/components/ReplaceApkPanel";
+import { formatBytes } from "@/lib/format";
 
 export default async function BuildPage({
   params,
@@ -22,6 +24,11 @@ export default async function BuildPage({
 
   const { app, build, siblings } = data;
   const canManage = user.role === "PUBLISHER";
+  // Replacing the APK is reserved for whoever published the build.
+  const canReplace = canManage && build.developerId === user.id;
+  const lastUpdate = build.updates[0] ?? null;
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const notes = (build.releaseNotes ?? "")
     .split("\n")
     .map((n) => n.trim())
@@ -97,6 +104,40 @@ export default async function BuildPage({
             )}
           </div>
 
+          {build.updates.length > 0 && (
+            <div className={styles.notesBlock}>
+              <SectionLabel>APK updates</SectionLabel>
+              <ol className={styles.updateList}>
+                {build.updates.map((u) => {
+                  const lines = (u.note ?? "")
+                    .split("\n")
+                    .map((n) => n.trim())
+                    .filter(Boolean);
+                  return (
+                    <li key={u.id} className={styles.updateItem}>
+                      <div className={styles.updateHead}>
+                        <span>{fmtDate(u.createdAt)}</span>
+                        <span>{u.uploadedBy.name}</span>
+                        <span className={styles.updateFile}>
+                          {u.apkFileName} · {formatBytes(u.apkSizeBytes)}
+                        </span>
+                      </div>
+                      {lines.length > 0 ? (
+                        <ul className={styles.notesList}>
+                          {lines.map((n, i) => (
+                            <li key={i}>{n}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className={styles.updateEmpty}>No note</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          )}
+
           {notes.length > 0 && (
             <div className={styles.notesBlock}>
               <SectionLabel>Release notes</SectionLabel>
@@ -134,6 +175,21 @@ export default async function BuildPage({
               </div>
             )}
 
+            {canReplace && (
+              <div style={{ marginTop: 14 }}>
+                <ReplaceApkPanel
+                  buildId={build.id}
+                  applicationId={app.id}
+                  buildVersion={build.version}
+                  buildNumber={build.number}
+                  hasInspector={build.hasInspector}
+                  storageName={app.defaultStorage?.name ?? null}
+                  storageProvider={app.defaultStorage?.provider ?? null}
+                  linkedIssueCount={build.tickets.length}
+                />
+              </div>
+            )}
+
             <div className={styles.divider} />
 
             <div style={{ display: "flex", flexDirection: "column" }}>
@@ -146,14 +202,10 @@ export default async function BuildPage({
                 },
                 { k: "Inspector", v: build.hasInspector ? "Included" : "Not included" },
                 { k: "Developer", v: build.developer.name },
-                {
-                  k: "Created",
-                  v: build.createdAt.toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  }),
-                },
+                { k: "Created", v: fmtDate(build.createdAt) },
+                ...(lastUpdate
+                  ? [{ k: "APK updated", v: `${fmtDate(lastUpdate.createdAt)} (${build.updates.length}×)` }]
+                  : []),
               ].map((row) => (
                 <div className={styles.metaRow} key={row.k}>
                   <span className={styles.metaKey}>{row.k}</span>

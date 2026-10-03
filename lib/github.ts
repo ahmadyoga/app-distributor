@@ -179,6 +179,67 @@ export async function postBuildComment({
   }
 }
 
+/** Posted when a build's APK is replaced in place — same build, same link. */
+export async function postApkUpdatedComment({
+  token,
+  repo,
+  issueNumber,
+  appName,
+  shareUrl,
+  buildNumber,
+  version,
+  developerName,
+  apkSizeBytes,
+  note,
+}: {
+  token: string;
+  repo: string;
+  issueNumber: number;
+  appName: string;
+  /** Null when the share link was revoked — the comment then carries no link. */
+  shareUrl: string | null;
+  buildNumber: string;
+  version: string;
+  developerName: string;
+  apkSizeBytes: number;
+  note: string | null;
+}): Promise<void> {
+  const sizeMb = (apkSizeBytes / 1024 / 1024).toFixed(1);
+  const lines = (note ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const body = [
+    `### 🔄 APK Updated — ${appName}`,
+    ``,
+    `The APK for build \`${buildNumber}\` was replaced. The download link is unchanged.`,
+    ``,
+    `| | |`,
+    `|---|---|`,
+    `| **Build** | \`${buildNumber}\` |`,
+    `| **Version** | \`v${version}\` |`,
+    `| **Updated by** | ${developerName} |`,
+    `| **APK size** | ${sizeMb} MB |`,
+    ...(lines.length > 0 ? [``, `**What changed**`, ...lines.map((l) => `- ${l}`)] : []),
+    ...(shareUrl ? [``, `[Download APK](${shareUrl})`] : []),
+  ].join("\n");
+
+  const res = await fetch(
+    `${BASE}/repos/${ORG}/${repo}/issues/${issueNumber}/comments`,
+    {
+      method: "POST",
+      headers: { ...headers(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to post comment to ${repo}#${issueNumber}: ${res.status} ${text}`);
+  }
+}
+
 export type TokenCheck =
   | { ok: true; login: string }
   | { ok: false; message: string };

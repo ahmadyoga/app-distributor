@@ -2,13 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  presignS3Upload,
-  createGDriveUploadSession,
-  finalizeBuild,
-} from "@/app/actions/storage";
+import { finalizeBuild } from "@/app/actions/storage";
 import { detectInspector } from "@/lib/apkInspector";
-import { uploadToDriveSession } from "@/lib/driveUpload";
+import { uploadApk } from "@/lib/uploadApk";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Button, TextLinkButton } from "@/components/ui/Button";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -22,32 +18,6 @@ type ApkParserInstance = InstanceType<typeof import("app-info-parser/src/apk").d
 type ApkInfo = { versionName?: string; versionCode?: string; packageName?: string };
 
 const MAX_APK_BYTES = 500 * 1024 * 1024;
-
-function xhrPut(
-  url: string,
-  file: File,
-  contentType: string,
-  onProgress: (pct: number) => void,
-  extraHeaders?: Record<string, string>
-): Promise<XMLHttpRequest> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url, true);
-    xhr.setRequestHeader("Content-Type", contentType);
-    for (const [k, v] of Object.entries(extraHeaders ?? {})) {
-      xhr.setRequestHeader(k, v);
-    }
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr);
-      else reject(new Error(`Upload failed (HTTP ${xhr.status})`));
-    };
-    xhr.onerror = () => reject(new Error("Upload failed — network error"));
-    xhr.send(file);
-  });
-}
 
 function formatMb(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -245,26 +215,12 @@ export function CreateBuildForm({
       setPhase("uploading");
       setProgress(0);
 
-      let storageConnectionId: string;
-      let storageObjectKey: string;
-
-      const contentType = file.type || "application/vnd.android.package-archive";
-
-      if (storageProvider === "S3_COMPATIBLE") {
-        const presigned = await presignS3Upload(applicationId, file.name, contentType);
-        await xhrPut(presigned.uploadUrl, file, contentType, setProgress);
-        storageConnectionId = presigned.storageConnectionId;
-        storageObjectKey = presigned.objectKey;
-      } else {
-        const session = await createGDriveUploadSession(applicationId, file.name, contentType);
-        // Chunked + resumable: a dropped connection resumes instead of restarting.
-        storageObjectKey = await uploadToDriveSession(session.uploadUrl, file, contentType, {
-          onProgress: setProgress,
-          onRetry: setRetry,
-        });
-        setRetry(null);
-        storageConnectionId = session.storageConnectionId;
-      }
+      const { storageConnectionId, storageObjectKey } = await uploadApk(
+        applicationId,
+        storageProvider,
+        file,
+        { onProgress: setProgress, onRetry: setRetry }
+      );
 
       setRetry(null);
       setPhase("finalizing");

@@ -68,3 +68,13 @@ export const ApplicationSchema = z.object({
     .max(4, "Max 4 characters.")
     .trim(),
 });
+
+export const ReplaceApkSchema = z.object({
+  buildId: z.string().min(1),
+  note: z.string().trim().max(2000, "Keep the note under 2000 characters.").optional(),
+  storageConnectionId: z.string().min(1, "No storage connected for this application."),
+  storageObjectKey: z.string().min(1),
+  apkFileName: z.string().min(1),
+  apkSizeBytes: z.coerce.number().int().positive(),
+  hasInspector: z.stringbool().optional().default(false),
+});

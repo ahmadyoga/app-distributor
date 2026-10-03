@@ -98,9 +98,11 @@ export async function getBuild(slug: string, id: string) {
   const build = await prisma.build.findUnique({
     where: { id },
     include: {
-      application: true,
+      // defaultStorage: where a Replace APK upload goes.
+      application: { include: { defaultStorage: { select: { name: true, provider: true } } } },
       developer: { select: { name: true } },
       tickets: { orderBy: { createdAt: "asc" } },
+      updates: { orderBy: { createdAt: "desc" }, include: { uploadedBy: { select: { name: true } } } },
     },
   });
   if (!build || build.application.slug !== slug) return null;
@@ -126,6 +128,7 @@ export async function getBuildById(id: string) {
       application: true,
       developer: { select: { name: true } },
       tickets: { orderBy: { createdAt: "asc" } },
+      updates: { orderBy: { createdAt: "desc" }, include: { uploadedBy: { select: { name: true } } } },
     },
   });
   if (!build) return null;
