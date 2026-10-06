@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# App Distributor
 
-## Getting Started
+Self-hosted internal distribution for Android builds. Upload an APK, share it with your team or testers, and keep every build traceable back to the GitHub issues it ships.
 
-First, run the development server:
+<!--
+  INTRO VIDEO: edit this README on GitHub, drag & drop the video file onto the line below,
+  and replace this comment block with the generated https://github.com/user-attachments/assets/... link.
+-->
+
+## Features
+
+- **Apps & builds**: upload APKs per app; version, package and metadata are read straight from the file.
+- **Environments**: tag each build (e.g. dev / staging / production).
+- **Share links**: public download page per build with OpenGraph preview, no login required.
+- **Replace APK**: swap a build's file while keeping its link, with update history.
+- **GitHub integration**: link issues to a build and post a comment on them automatically (per-user token, stored encrypted).
+- **Pluggable storage**: S3-compatible buckets or Google Drive (OAuth).
+- **Roles**: publishers upload and manage, viewers download.
+- **Mobile API**: `/api/mobile/*` endpoints for a companion app.
+
+## Tech stack
+
+Next.js 16 (App Router) · React 19 · Prisma + PostgreSQL · AWS SDK v3 · Google Drive API
+
+## Getting started
 
 ```bash
+npm install
+# create .env with the variables below
+npm run db:migrate
+npm run db:seed        # optional: demo data
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `AUTH_SECRET` | yes | Secret used to sign session tokens |
+| `ENCRYPTION_KEY` | yes | 64 hex chars, encrypts stored credentials. `openssl rand -hex 32` |
+| `BASE_URL` | prod | Public URL of the deployment (default `http://localhost:3000`) |
+| `GOOGLE_CLIENT_ID` | Drive only | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Drive only | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | Drive only | `<BASE_URL>/api/storage/gdrive/oauth/callback` |
 
-## Learn More
+S3 credentials are entered per storage in the app (Storage page), not via env.
 
-To learn more about Next.js, take a look at the following resources:
+### Demo data
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`npm run db:seed` creates demo users (`viewer@northline.io` etc.) with password `buildappdemo`. **Never run the seed against production.**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Command | Description |
+|---|---|
+| `npm run dev` | Start dev server |
+| `npm run build` / `npm start` | Production build / serve |
+| `npm run db:migrate` | Apply Prisma migrations |
+| `npm run db:seed` | Seed demo data |
+| `npm run db:studio` | Open Prisma Studio |
