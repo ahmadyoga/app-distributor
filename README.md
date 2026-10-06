@@ -2,10 +2,7 @@
 
 Self-hosted internal distribution for Android builds. Upload an APK, share it with your team or testers, and keep every build traceable back to the GitHub issues it ships.
 
-<!--
-  INTRO VIDEO: edit this README on GitHub, drag & drop the video file onto the line below,
-  and replace this comment block with the generated https://github.com/user-attachments/assets/... link.
--->
+https://github.com/user-attachments/assets/80c754e0-60c0-4bf5-9341-eacf93595738
 
 ## Features
 
